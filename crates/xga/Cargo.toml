@@ -1,0 +1,46 @@
+[package]
+name = "cb-reserved-gas"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Core dependencies from workspace
+tokio = { workspace = true }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+eyre = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+alloy = { workspace = true }
+futures = { workspace = true }
+color-eyre = { workspace = true }
+
+# Commit-boost dependencies
+cb-common = { path = "../common" }
+cb-metrics = { path = "../metrics" }
+cb-pbs = { path = "../pbs" }
+
+# HTTP client for relay communication
+reqwest = { workspace = true }
+
+# State management
+dashmap = "6.0"
+parking_lot = { workspace = true }
+
+# Metrics
+prometheus = { workspace = true }
+lazy_static = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Testing frameworks
+googletest = "0.11"
+proptest = "1.4"
+
+[[bin]]
+name = "reserved-gas"
+path = "src/main.rs"
