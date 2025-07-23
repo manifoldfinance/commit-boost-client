@@ -57,7 +57,7 @@ fn default_reserve_endpoint() -> String {
     "/xga/v2/relay/reserve".to_string()
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct RelayGasConfig {
     /// Reserved gas limit advertised by the relay
     pub reserved_gas_limit: u64,
@@ -76,14 +76,13 @@ impl ReservedGasConfig {
     }
 
     /// Validate that a gas limit after reservation meets minimum requirements
-    pub fn validate_gas_limit(&self, original_gas_limit: u64, reserved: u64) -> Result<u64> {
+    pub fn validate_gas_limit(&self, original_gas_limit: u64, reserved: u64) -> crate::error::Result<u64> {
         // Use the validation function from validation module
         crate::validation::validate_gas_after_reservation(
             original_gas_limit,
             reserved,
             self.min_block_gas_limit,
         )
-        .map_err(|e| eyre::eyre!(e))
     }
 
     /// Validate the configuration on startup

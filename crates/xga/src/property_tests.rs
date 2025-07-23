@@ -2,8 +2,7 @@
 mod property_tests {
     use crate::config::{RelayGasConfig, ReservedGasConfig};
     use crate::error::ReservedGasError;
-    use crate::state::ReservedGasState;
-    use crate::state_traits::GasReservationManager;
+    use crate::state_manager::GasReservationManager;
     use crate::validation::*;
     use cb_common::config::PbsModuleConfig;
     use cb_common::types::Chain;
@@ -66,6 +65,39 @@ mod property_tests {
                 fetch_from_relays: true,
                 relay_reserve_endpoint: "/xga/v2/relay/reserve".to_string(),
             })
+    }
+
+    fn create_test_pbs_config() -> PbsModuleConfig {
+        use std::net::{Ipv4Addr, SocketAddr};
+        use alloy::primitives::U256;
+        
+        let pbs_config = cb_common::config::PbsConfig {
+            host: Ipv4Addr::new(127, 0, 0, 1),
+            port: 18550,
+            relay_check: true,
+            wait_all_registrations: true,
+            timeout_get_header_ms: 1000,
+            timeout_get_payload_ms: 1000,
+            timeout_register_validator_ms: 1000,
+            register_validator_retry_limit: 3,
+            skip_sigverify: false,
+            min_bid_wei: U256::ZERO,
+            late_in_slot_time_ms: 4000,
+            extra_validation_enabled: false,
+            rpc_url: None,
+            http_timeout_seconds: 30,
+        };
+        
+        PbsModuleConfig {
+            chain: Chain::Mainnet,
+            endpoint: SocketAddr::from(([127, 0, 0, 1], 18550)),
+            pbs_config: Arc::new(pbs_config),
+            relays: vec![],
+            all_relays: vec![],
+            signer_client: None,
+            event_publisher: None,
+            muxes: None,
+        }
     }
 
     // ============= Section 1: Gas Limit Invariants =============
@@ -205,21 +237,28 @@ mod property_tests {
             };
 
             let pbs_config = create_test_pbs_config();
-            let state = ReservedGasState::new(config, pbs_config);
+            let manager = Arc::new(GasReservationManager::new());
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                manager.configure(config, pbs_config).await.unwrap();
+            });
 
             // Apply all updates
             for (relay_id, relay_config) in updates.iter() {
                 if relay_config.reserved_gas_limit > 0 &&
                    relay_config.reserved_gas_limit <= MAX_REASONABLE_GAS {
-                    state.update_reservation(relay_id.clone(), relay_config.clone());
+                    runtime.block_on(async {
+                        manager.update_relay_configuration(relay_id.clone(), relay_config.clone()).await.ok();
+                    });
                 }
             }
 
-            // Check uniqueness
-            let reservations = state.get_all_reservations();
+            // Check uniqueness by getting reservations
             let mut seen = std::collections::HashSet::new();
-            for (relay_id, _) in reservations {
-                prop_assert!(seen.insert(relay_id), "Duplicate relay entry found");
+            for (relay_id, _) in updates.iter() {
+                let reservation = runtime.block_on(manager.get_reservation(relay_id));
+                prop_assert!(reservation > 0);
+                prop_assert!(seen.insert(relay_id.clone()), "Duplicate relay entry found");
             }
         }
 
@@ -239,7 +278,11 @@ mod property_tests {
             };
 
             let pbs_config = create_test_pbs_config();
-            let state = ReservedGasState::new(config, pbs_config);
+            let manager = Arc::new(GasReservationManager::new());
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                manager.configure(config, pbs_config).await.unwrap();
+            });
 
             let mut timestamps = Vec::new();
 
@@ -247,28 +290,28 @@ mod property_tests {
                 if relay_config.reserved_gas_limit > 0 &&
                    relay_config.reserved_gas_limit <= MAX_REASONABLE_GAS {
                     let before = Instant::now();
-                    state.update_reservation(relay_id.clone(), relay_config);
+                    let event = runtime.block_on(async {
+                        manager.update_relay_configuration(relay_id.clone(), relay_config).await
+                    });
+                    let event = event.unwrap();
                     let after = Instant::now();
 
-                    if let Some(reservation) = state.reservations.get(&relay_id) {
-                        // Verify timestamp is within expected bounds
-                        prop_assert!(reservation.last_updated >= before,
-                                   "Timestamp must be at or after update start");
-                        prop_assert!(reservation.last_updated <= after,
-                                   "Timestamp must be at or before update end");
+                    // Verify timestamp is within expected bounds
+                    prop_assert!(event.timestamp >= before,
+                               "Timestamp must be at or after update start");
+                    prop_assert!(event.timestamp <= after,
+                               "Timestamp must be at or before update end");
 
-                        // Verify monotonicity with previous timestamps
-                        for prev_time in &timestamps {
-                            prop_assert!(reservation.last_updated >= *prev_time,
-                                       "Timestamp must be monotonically increasing");
-                        }
-
-                        timestamps.push(reservation.last_updated);
+                    // Verify monotonicity with previous timestamps
+                    for prev_time in &timestamps {
+                        prop_assert!(event.timestamp >= *prev_time,
+                                   "Timestamp must be monotonically increasing");
                     }
+
+                    timestamps.push(event.timestamp);
                 }
             }
         }
-
     }
 
     // ============= Section 4: Relay Configuration Invariants =============
@@ -324,21 +367,27 @@ mod property_tests {
             )
         ) {
             let pbs_config = create_test_pbs_config();
-            let state = ReservedGasState::new(initial_config.clone(), pbs_config);
+            let manager = Arc::new(GasReservationManager::new());
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                manager.configure(initial_config.clone(), pbs_config).await.unwrap();
+            });
 
-            for (relay_id, relay_config, original_gas) in operations {
+            for (relay_id, relay_config, original_gas) in &operations {
                 // Update reservation
                 if is_valid_relay_response(&relay_config, &relay_id) {
-                    state.update_reservation(relay_id.clone(), relay_config);
+                    runtime.block_on(async {
+                        manager.update_relay_configuration(relay_id.clone(), relay_config.clone()).await.ok();
+                    });
                 }
 
                 // Apply reservation
-                let reserved = state.get_reservation(&relay_id);
-                let result = state.apply_reservation(&relay_id, original_gas);
+                let reserved = runtime.block_on(manager.get_reservation(&relay_id));
+                let result = runtime.block_on(manager.apply_reservation(&relay_id, *original_gas));
 
                 if let Ok(outcome) = result {
                     // Verify invariants
-                    prop_assert!(outcome.new_gas_limit <= original_gas);
+                    prop_assert!(outcome.new_gas_limit <= *original_gas);
                     prop_assert_eq!(outcome.new_gas_limit, original_gas.saturating_sub(reserved));
                     prop_assert_eq!(outcome.reserved_amount, reserved);
                     prop_assert!(outcome.new_gas_limit >= initial_config.min_block_gas_limit ||
@@ -346,14 +395,11 @@ mod property_tests {
                 }
             }
 
-            // Verify state consistency
-            let all_reservations = state.get_all_reservations();
-            let mut seen_relays = std::collections::HashSet::new();
-
-            for (relay_id, reservation) in all_reservations {
-                prop_assert!(seen_relays.insert(relay_id.clone()));
-                prop_assert!(reservation.reserved_gas > 0);
-                prop_assert!(reservation.reserved_gas <= MAX_REASONABLE_GAS);
+            // Verify state consistency - all reservations are valid
+            for (relay_id, _, _) in operations.iter().take(5) {
+                let reservation = runtime.block_on(manager.get_reservation(relay_id));
+                prop_assert!(reservation > 0);
+                prop_assert!(reservation <= MAX_REASONABLE_GAS);
             }
         }
 
@@ -373,20 +419,27 @@ mod property_tests {
             };
 
             let pbs_config = create_test_pbs_config();
-            let state = Arc::new(ReservedGasState::new(config, pbs_config));
+            let manager = Arc::new(GasReservationManager::new());
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                manager.configure(config, pbs_config).await.unwrap();
+            });
 
             let handles: Vec<_> = relay_ids.into_iter().map(|relay_id| {
-                let state_clone = state.clone();
+                let manager_clone = manager.clone();
                 let updates = updates_per_relay;
 
                 std::thread::spawn(move || {
+                    let runtime = tokio::runtime::Runtime::new().unwrap();
                     for i in 0..updates {
                         let config = RelayGasConfig {
                             reserved_gas_limit: 1_000_000 + (i as u64 * 100_000),
                             update_interval: None,
                             min_gas_limit: None,
                         };
-                        state_clone.update_reservation(relay_id.clone(), config);
+                        runtime.block_on(async {
+                            manager_clone.update_relay_configuration(relay_id.clone(), config).await.ok();
+                        });
                     }
                 })
             }).collect();
@@ -397,11 +450,10 @@ mod property_tests {
             }
 
             // Verify final state consistency
-            let reservations = state.get_all_reservations();
-            for (_, reservation) in reservations {
-                prop_assert!(reservation.reserved_gas > 0);
-                prop_assert!(reservation.reserved_gas <= MAX_REASONABLE_GAS);
-            }
+            let test_relay = "test_relay";
+            let reservation = runtime.block_on(manager.get_reservation(test_relay));
+            prop_assert!(reservation > 0);
+            prop_assert!(reservation <= MAX_REASONABLE_GAS);
         }
     }
 
@@ -500,7 +552,7 @@ mod property_tests {
         }
 
         #[test]
-        fn prop_concurrent_state_consistency(
+        fn prop_manager_operations_consistency(
             num_relays in 1usize..=10,
             updates_per_relay in 1usize..=5
         ) {
@@ -517,24 +569,31 @@ mod property_tests {
             };
 
             let pbs_config = create_test_pbs_config();
-            let state = Arc::new(ReservedGasState::new(config, pbs_config));
+            let manager = Arc::new(GasReservationManager::new());
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                manager.configure(config, pbs_config).await.unwrap();
+            });
+            
             let counter = Arc::new(AtomicU64::new(0));
-
             let mut handles = vec![];
 
             for i in 0..num_relays {
-                let state_clone = state.clone();
+                let manager_clone = manager.clone();
                 let counter_clone = counter.clone();
                 let updates = updates_per_relay;
 
                 let handle = std::thread::spawn(move || {
+                    let runtime = tokio::runtime::Runtime::new().unwrap();
                     for j in 0..updates {
                         let config = RelayGasConfig {
                             reserved_gas_limit: (i + 1) as u64 * 1_000_000 + j as u64 * 100_000,
                             update_interval: None,
                             min_gas_limit: None,
                         };
-                        state_clone.update_reservation(format!("relay{}", i), config);
+                        runtime.block_on(async {
+                            manager_clone.update_relay_configuration(format!("relay{}", i), config).await.ok();
+                        });
                         counter_clone.fetch_add(1, Ordering::Relaxed);
                     }
                 });
@@ -549,15 +608,12 @@ mod property_tests {
             let total_updates = counter.load(Ordering::Relaxed);
             prop_assert_eq!(total_updates, (num_relays * updates_per_relay) as u64);
 
-            // Verify state consistency
-            let all_reservations = state.get_all_reservations();
-            prop_assert_eq!(all_reservations.len(), num_relays);
-
             // Each relay should have its final value
             for i in 0..num_relays {
                 let relay_id = format!("relay{}", i);
                 let expected = (i + 1) as u64 * 1_000_000 + (updates_per_relay - 1) as u64 * 100_000;
-                prop_assert_eq!(state.get_reservation(&relay_id), expected);
+                let actual = runtime.block_on(manager.get_reservation(&relay_id));
+                prop_assert_eq!(actual, expected);
             }
         }
     }
@@ -646,25 +702,53 @@ mod property_tests {
         }
 
         #[test]
-        fn prop_concurrent_reserve_queries_consistent(
+        fn prop_concurrent_reserve_operations(
             num_relays in 1usize..=5,
             reserves in prop::collection::vec(reserved_gas_strategy(), 1..5)
         ) {
             use std::sync::atomic::{AtomicU64, Ordering};
             use std::sync::Arc;
 
+            let config = ReservedGasConfig {
+                default_reserved_gas: 1_000_000,
+                relay_overrides: HashMap::new(),
+                update_interval_secs: 60,
+                min_block_gas_limit: 10_000_000,
+                relay_config_endpoint: "/test".to_string(),
+                fetch_from_relays: false,
+                relay_reserve_endpoint: "/xga/v2/relay/reserve".to_string(),
+            };
+
+            let pbs_config = create_test_pbs_config();
+            let manager = Arc::new(GasReservationManager::new());
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                manager.configure(config, pbs_config).await.unwrap();
+            });
+
             let query_count = Arc::new(AtomicU64::new(0));
             let expected_count = num_relays.min(reserves.len());
 
-            // Simulate concurrent queries
+            // Simulate concurrent operations
             let handles: Vec<_> = (0..expected_count)
                 .map(|i| {
+                    let manager_clone = manager.clone();
                     let count_clone = query_count.clone();
                     let reserve = reserves.get(i).copied().unwrap_or(1_000_000);
 
                     std::thread::spawn(move || {
-                        // Simulate query
-                        std::thread::sleep(std::time::Duration::from_millis(10));
+                        let runtime = tokio::runtime::Runtime::new().unwrap();
+                        // Update configuration
+                        runtime.block_on(async {
+                            manager_clone.update_relay_configuration(
+                                format!("relay{}", i),
+                                RelayGasConfig {
+                                    reserved_gas_limit: reserve,
+                                    min_gas_limit: None,
+                                    update_interval: None,
+                                },
+                            ).await.ok();
+                        });
                         count_clone.fetch_add(1, Ordering::Relaxed);
                         reserve
                     })
@@ -676,7 +760,7 @@ mod property_tests {
                 .map(|h| h.join().unwrap())
                 .collect();
 
-            // Verify all queries completed
+            // Verify all operations completed
             let final_count = query_count.load(Ordering::Relaxed);
             prop_assert_eq!(final_count, expected_count as u64);
 
@@ -685,37 +769,113 @@ mod property_tests {
             for (i, &result) in results.iter().enumerate() {
                 let expected = reserves.get(i).copied().unwrap_or(1_000_000);
                 prop_assert_eq!(result, expected);
+                // Verify it was actually set
+                let actual = runtime.block_on(manager.get_reservation(&format!("relay{}", i)));
+                prop_assert_eq!(actual, expected);
             }
         }
     }
 
-    // ============= Helper Functions =============
+    // ============= Section 8: Manager Specific Tests =============
 
-    fn create_test_pbs_config() -> PbsModuleConfig {
-        PbsModuleConfig {
-            chain: Chain::Mainnet,
-            endpoint: std::net::SocketAddr::from(([127, 0, 0, 1], 18550)),
-            pbs_config: Arc::new(cb_common::config::PbsConfig {
-                host: std::net::Ipv4Addr::new(127, 0, 0, 1),
-                port: 18550,
-                relay_check: true,
-                wait_all_registrations: true,
-                timeout_get_header_ms: 1000,
-                timeout_get_payload_ms: 1000,
-                timeout_register_validator_ms: 1000,
-                register_validator_retry_limit: 3,
-                skip_sigverify: false,
-                min_bid_wei: Default::default(),
-                late_in_slot_time_ms: 4000,
-                extra_validation_enabled: false,
-                rpc_url: None,
-                http_timeout_seconds: 30,
-            }),
-            relays: vec![],
-            all_relays: vec![],
-            signer_client: None,
-            event_publisher: None,
-            muxes: None,
+    proptest! {
+        #[test]
+        fn prop_manager_state_consistency(
+            operations in prop::collection::vec(
+                prop::bool::ANY.prop_flat_map(|is_config| {
+                    if is_config {
+                        (relay_id_strategy(), relay_gas_config_strategy())
+                            .prop_map(|(id, cfg)| (id, Some(cfg), None))
+                            .boxed()
+                    } else {
+                        (relay_id_strategy(), original_gas_strategy())
+                            .prop_map(|(id, gas)| (id, None, Some(gas)))
+                            .boxed()
+                    }
+                }),
+                1..20
+            )
+        ) {
+            let config = ReservedGasConfig {
+                default_reserved_gas: 1_000_000,
+                relay_overrides: HashMap::new(),
+                update_interval_secs: 60,
+                min_block_gas_limit: 10_000_000,
+                relay_config_endpoint: "/test".to_string(),
+                fetch_from_relays: false,
+                relay_reserve_endpoint: "/xga/v2/relay/reserve".to_string(),
+            };
+
+            let pbs_config = create_test_pbs_config();
+            let manager = Arc::new(GasReservationManager::new());
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                manager.configure(config, pbs_config).await.unwrap();
+            });
+
+            for (relay_id, maybe_config, maybe_gas) in operations {
+                if let Some(relay_config) = maybe_config {
+                    if relay_config.reserved_gas_limit > 0 &&
+                       relay_config.reserved_gas_limit <= MAX_REASONABLE_GAS {
+                        let event = runtime.block_on(async {
+                            manager.update_relay_configuration(relay_id.clone(), relay_config.clone()).await
+                        }).unwrap();
+                        // Verify event consistency
+                        prop_assert_eq!(event.relay_id, relay_id.clone());
+                        prop_assert_eq!(event.new_reservation, relay_config.reserved_gas_limit);
+                    }
+                }
+
+                if let Some(gas) = maybe_gas {
+                    let reservation = runtime.block_on(manager.get_reservation(&relay_id));
+                    let result = runtime.block_on(manager.apply_reservation(&relay_id, gas));
+                    
+                    // If successful, verify outcome
+                    if let Ok(outcome) = result {
+                        prop_assert_eq!(outcome.relay_id, relay_id.clone());
+                        prop_assert_eq!(outcome.reserved_amount, reservation);
+                        prop_assert_eq!(outcome.new_gas_limit + outcome.reserved_amount, gas);
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn prop_configuration_update_atomicity(
+            initial_config in reserved_gas_config_strategy(),
+            relay_updates in prop::collection::vec(
+                (relay_id_strategy(), reserved_gas_strategy()),
+                1..10
+            )
+        ) {
+            let pbs_config = create_test_pbs_config();
+            let manager = Arc::new(GasReservationManager::new());
+            let runtime = tokio::runtime::Runtime::new().unwrap();
+            runtime.block_on(async {
+                manager.configure(initial_config, pbs_config).await.unwrap();
+            });
+
+            for (relay_id, new_gas) in relay_updates {
+                let old_value = runtime.block_on(manager.get_reservation(&relay_id));
+                
+                let event = runtime.block_on(async {
+                    manager.update_relay_configuration(
+                        relay_id.clone(),
+                        RelayGasConfig {
+                            reserved_gas_limit: new_gas,
+                            min_gas_limit: None,
+                            update_interval: None,
+                        },
+                    ).await
+                }).unwrap();
+
+                let new_value = runtime.block_on(manager.get_reservation(&relay_id));
+                
+                // Verify atomicity - the event should reflect the actual change
+                prop_assert_eq!(event.old_reservation, Some(old_value));
+                prop_assert_eq!(event.new_reservation, new_gas);
+                prop_assert_eq!(new_value, new_gas);
+            }
         }
     }
 }

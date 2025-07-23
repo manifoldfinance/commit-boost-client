@@ -14,6 +14,9 @@ pub enum ReservedGasError {
     #[error("Relay communication failed: {0}")]
     RelayError(#[from] reqwest::Error),
 
+    #[error("Relay connection error for {relay_id}: {message}")]
+    RelayConnectionError { relay_id: String, message: String },
+
     #[error("No healthy relays available")]
     NoHealthyRelays,
 

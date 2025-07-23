@@ -36,6 +36,9 @@ lazy_static = { workspace = true }
 # Error handling
 thiserror = { workspace = true }
 
+# URL parsing for tests
+url = { workspace = true }
+
 [dev-dependencies]
 # Testing frameworks
 googletest = "0.11"

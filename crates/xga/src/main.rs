@@ -1,16 +1,21 @@
 mod api;
+#[allow(dead_code)]
+mod api_handlers;
+mod cache;
 mod config;
 mod error;
 mod metrics;
 mod metrics_wrapper;
-mod relay_client;
 mod relay_communication;
-mod service;
-mod state;
-mod state_traits;
+mod state_manager;
 mod types;
 mod validation;
 
+// Old modules replaced by state_manager
+// mod typestate;
+// mod service;
+
+// Tests have been updated for typestate
 #[cfg(test)]
 mod tests;
 
@@ -20,10 +25,9 @@ mod property_tests;
 #[cfg(test)]
 mod test_matchers;
 
-use api::ReservedGasApi;
 use config::ReservedGasConfig;
-use relay_client::config_fetcher_task;
-use state::ReservedGasState;
+use state_manager::{GasReservationManager, GasReservationManagerWrapper};
+use api::StateManagerReservedGasApi;
 
 use cb_common::{
     config::{load_pbs_custom_config, LogsSettings, PBS_MODULE_NAME},
@@ -31,6 +35,8 @@ use cb_common::{
 };
 use cb_pbs::{PbsService, PbsState};
 use eyre::Result;
+use relay_communication::RelayQueryService;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 /// Module identifier for logging and metrics
@@ -50,7 +56,7 @@ async fn main() -> Result<()> {
     // Initialize tracing
     let _guard = initialize_tracing_log(PBS_MODULE_NAME, LogsSettings::from_env_config()?)?;
 
-    info!("Starting Reserved Gas Limit module");
+    info!("Starting Reserved Gas Limit module (State Manager Implementation)");
     info!(
         default_reserved_gas = extra_config.default_reserved_gas,
         relay_overrides = extra_config.relay_overrides.len(),
@@ -58,39 +64,50 @@ async fn main() -> Result<()> {
         "Loaded configuration"
     );
 
-    // Initialize state
-    let reserved_gas_state = ReservedGasState::new(extra_config.clone(), pbs_config.clone());
+    // Initialize state manager
+    let manager = Arc::new(GasReservationManager::new());
+    manager.configure(extra_config.clone(), pbs_config.clone()).await?;
+
+    // Sync with relays if enabled
+    let query_service = RelayQueryService::production();
+    manager.sync_if_enabled(&pbs_config.relays, &query_service).await?;
 
     // Start background config fetcher if enabled
     if extra_config.fetch_from_relays {
-        let fetcher_state = reserved_gas_state.clone();
+        let bg_manager = manager.clone();
+        let bg_relays = pbs_config.relays.clone();
+        let bg_config = extra_config.clone();
+        let bg_query_service = RelayQueryService::production();
         let _fetcher_handle = tokio::spawn(async move {
-            info!("Starting relay config fetcher task");
+            info!("Starting background task for automatic config updates");
+            let mut interval = tokio::time::interval(
+                std::time::Duration::from_secs(bg_config.update_interval_secs)
+            );
             loop {
-                if let Err(e) = tokio::time::timeout(
-                    std::time::Duration::from_secs(600), // 10 minute timeout
-                    config_fetcher_task(fetcher_state.clone()),
-                )
-                .await
-                {
-                    warn!("Config fetcher task timed out or panicked: {:?}", e);
-                    // Continue with a new instance
+                interval.tick().await;
+                
+                // Check freshness and refresh if needed
+                match bg_manager.check_freshness().await {
+                    Ok(false) => {
+                        info!("Configuration is stale, refreshing...");
+                        if let Err(e) = bg_manager.refresh(&bg_relays, &bg_query_service).await {
+                            warn!("Failed to refresh configuration: {}", e);
+                        }
+                    }
+                    Ok(true) => {
+                        // Configuration is still fresh
+                    }
+                    Err(e) => {
+                        warn!("Failed to check configuration freshness: {}", e);
+                    }
                 }
-                // Small delay before restarting to avoid tight loop
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             }
-        });
-
-        // Fetch initial configs with error handling
-        let initial_state = reserved_gas_state.clone();
-        tokio::spawn(async move {
-            info!("Fetching initial relay configurations");
-            initial_state.fetch_relay_configs().await;
         });
     }
 
-    // Create PBS state with our custom data
-    let state = PbsState::new(pbs_config).with_data(reserved_gas_state);
+    // Create PBS state with our state manager wrapper
+    let wrapper = GasReservationManagerWrapper(manager);
+    let state = PbsState::new(pbs_config).with_data(wrapper);
 
     // Initialize and register metrics
     PbsService::init_metrics(chain)?;
@@ -101,6 +118,6 @@ async fn main() -> Result<()> {
         PbsService::register_metric(metric);
     }
 
-    // Run the PBS service
-    PbsService::run::<ReservedGasState, ReservedGasApi>(state).await
+    // Run the PBS service with state manager
+    PbsService::run::<GasReservationManagerWrapper, StateManagerReservedGasApi>(state).await
 }

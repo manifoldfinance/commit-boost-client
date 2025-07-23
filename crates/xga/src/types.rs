@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 /// Type alias for relay ID
 pub type RelayId = Arc<String>;
@@ -6,8 +7,25 @@ pub type RelayId = Arc<String>;
 /// Type alias for gas amount in wei
 pub type GasAmount = u64;
 
+/// Represents a gas reservation for a specific relay
+#[derive(Debug, Clone)]
+pub struct GasReservation {
+    /// Reserved gas amount for this relay
+    pub reserved_gas: u64,
+    
+    /// When this reservation was last updated
+    pub last_updated: Instant,
+    
+    /// The relay ID this reservation is for
+    pub relay_id: String,
+    
+    /// Optional min gas limit from relay
+    pub min_gas_limit: Option<u64>,
+}
+
 /// Represents a bid from a relay with gas reservation applied
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AdjustedBid {
     pub response: cb_common::pbs::GetHeaderResponse,
     pub original_gas_limit: GasAmount,
@@ -17,6 +35,7 @@ pub struct AdjustedBid {
 
 /// Result of querying a single relay
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum RelayQueryResult {
     Bid(AdjustedBid),
     NoBid,
