@@ -16,3 +16,5 @@ targets.json
 .idea/
 logs
 .vscode/
+.DS_Store
+
