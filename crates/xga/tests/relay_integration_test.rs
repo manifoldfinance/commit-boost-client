@@ -1,7 +1,7 @@
 use commit_boost::prelude::*;
 use mockito::ServerGuard;
 use xga_commitment::{
-    commitment::{SignedXGACommitment, XGACommitment, XGAParameters},
+    commitment::{SignedXgaCommitment, XgaCommitment, XgaParameters},
     config::RetryConfig,
     infrastructure::HttpClientFactory,
     relay::{check_xga_support, send_to_relay},
@@ -136,15 +136,15 @@ async fn test_send_commitment_success() {
         .create_async()
         .await;
 
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::default(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
-    let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
+    let signed = SignedXgaCommitment { message: commitment, signature: BlsSignature::default() };
 
     let http_client_factory = HttpClientFactory::new();
     let retry_config = RetryConfig {
@@ -152,7 +152,7 @@ async fn test_send_commitment_success() {
         initial_backoff_ms: 100,
         max_backoff_secs: 5,
     };
-    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
+    let result = send_to_relay(signed, &url, &retry_config, &http_client_factory).await;
     assert!(result.is_ok());
 }
 
@@ -177,15 +177,15 @@ async fn test_send_commitment_retry_logic() {
         .create_async()
         .await;
 
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::default(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
-    let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
+    let signed = SignedXgaCommitment { message: commitment, signature: BlsSignature::default() };
 
     let http_client_factory = HttpClientFactory::new();
     let retry_config = RetryConfig {
@@ -193,7 +193,7 @@ async fn test_send_commitment_retry_logic() {
         initial_backoff_ms: 10,
         max_backoff_secs: 5,
     };
-    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
+    let result = send_to_relay(signed, &url, &retry_config, &http_client_factory).await;
     assert!(result.is_ok());
 }
 
@@ -210,15 +210,15 @@ async fn test_send_commitment_all_retries_fail() {
         .create_async()
         .await;
 
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::default(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
-    let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
+    let signed = SignedXgaCommitment { message: commitment, signature: BlsSignature::default() };
 
     let http_client_factory = HttpClientFactory::new();
     let retry_config = RetryConfig {
@@ -226,7 +226,7 @@ async fn test_send_commitment_all_retries_fail() {
         initial_backoff_ms: 10,
         max_backoff_secs: 5,
     };
-    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
+    let result = send_to_relay(signed, &url, &retry_config, &http_client_factory).await;
     assert!(result.is_err());
 }
 
@@ -256,15 +256,15 @@ async fn test_send_commitment_edge_cases() {
         .create_async()
         .await;
 
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::default(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
-    let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
+    let signed = SignedXgaCommitment { message: commitment, signature: BlsSignature::default() };
 
     // Server error response should be handled as an error
     let http_client_factory = HttpClientFactory::new();
@@ -273,24 +273,24 @@ async fn test_send_commitment_edge_cases() {
         initial_backoff_ms: 100,
         max_backoff_secs: 5,
     };
-    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
+    let result = send_to_relay(signed, &url, &retry_config, &http_client_factory).await;
     assert!(result.is_err());
 }
 
 #[tokio::test]
 async fn test_send_commitment_timeout() {
     // Use a URL that will cause connection to fail/timeout
-    let url = "https://localhost:9999".to_string(); // Non-existent server
+    let url = "https://localhost:9999"; // Non-existent server
 
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::default(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
-    let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
+    let signed = SignedXgaCommitment { message: commitment, signature: BlsSignature::default() };
 
     // Connection should fail/timeout
     let http_client_factory = HttpClientFactory::new();
@@ -299,6 +299,6 @@ async fn test_send_commitment_timeout() {
         initial_backoff_ms: 50,
         max_backoff_secs: 5,
     };
-    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
+    let result = send_to_relay(signed, &url, &retry_config, &http_client_factory).await;
     assert!(result.is_err());
 }

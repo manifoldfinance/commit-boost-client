@@ -8,7 +8,7 @@ use alloy::{
 use commit_boost::prelude::*;
 use eyre::Result;
 use xga_commitment::{
-    commitment::{XGACommitment, XGAParameters},
+    commitment::{XgaCommitment, XgaParameters},
     eigenlayer::EigenLayerConfig,
 };
 
@@ -117,20 +117,20 @@ async fn test_commitment_hash_tracking() {
     let validator_pubkey = BlsPublicKey::from([1u8; 48]);
 
     // Create two different commitments
-    let commitment1 = XGACommitment::new(
+    let commitment1 = XgaCommitment::new(
         [42u8; 32],
         validator_pubkey.clone(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
-    let commitment2 = XGACommitment::new(
+    let commitment2 = XgaCommitment::new(
         [43u8; 32], // Different registration hash
         validator_pubkey.clone(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
     // Verify hashes are different
@@ -149,20 +149,20 @@ async fn test_commitment_validation() {
     let validator_pubkey = BlsPublicKey::from([1u8; 48]);
 
     // Test with different chain IDs
-    let commitment_mainnet = XGACommitment::new(
+    let commitment_mainnet = XgaCommitment::new(
         [42u8; 32],
         validator_pubkey.clone(),
-        "mainnet-relay".to_string(),
+        "mainnet-relay",
         1, // Mainnet
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
-    let commitment_holesky = XGACommitment::new(
+    let commitment_holesky = XgaCommitment::new(
         [42u8; 32],
         validator_pubkey.clone(),
-        "holesky-relay".to_string(),
+        "holesky-relay",
         17000, // Holesky
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
     // Verify chain IDs are properly set
@@ -171,12 +171,12 @@ async fn test_commitment_validation() {
 
     // Test XGA parameters with actual fields
     let custom_params =
-        XGAParameters { version: 2, min_inclusion_slot: 100, max_inclusion_slot: 200, flags: 0x01 };
+        XgaParameters { version: 2, min_inclusion_slot: 100, max_inclusion_slot: 200, flags: 0x01 };
 
-    let commitment_custom = XGACommitment::new(
+    let commitment_custom = XgaCommitment::new(
         [42u8; 32],
         validator_pubkey.clone(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
         custom_params,
     );

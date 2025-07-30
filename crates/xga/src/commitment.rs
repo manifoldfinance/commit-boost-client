@@ -7,13 +7,13 @@ use crate::{
     types::{CommitmentHash, RelayId},
 };
 
-/// XGA module signing domain - "XGA_COMMITMENT" as bytes
+/// XGA module signing domain - `XGA_COMMITMENT` as bytes
 pub const XGA_SIGNING_DOMAIN: [u8; 32] = [
     0x58, 0x47, 0x41, 0x5f, 0x43, 0x4f, 0x4d, 0x4d, 0x49, 0x54, 0x4d, 0x45, 0x4e, 0x54, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-/// Custom serde for relay_id
+/// Custom serde for `relay_id`
 mod relay_id_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -44,7 +44,7 @@ mod relay_id_serde {
     }
 }
 
-/// Custom serde for commitment_hash
+/// Custom serde for `commitment_hash`
 mod commitment_hash_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -74,7 +74,7 @@ mod commitment_hash_serde {
 
 /// XGA-specific parameters for the commitment
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct XGAParameters {
+pub struct XgaParameters {
     /// Version of the XGA protocol
     pub version: u64,
     /// Minimum guaranteed inclusion slot
@@ -85,7 +85,7 @@ pub struct XGAParameters {
     pub flags: u64,
 }
 
-impl Default for XGAParameters {
+impl Default for XgaParameters {
     fn default() -> Self {
         Self { version: 1, min_inclusion_slot: 0, max_inclusion_slot: 0, flags: 0 }
     }
@@ -93,7 +93,7 @@ impl Default for XGAParameters {
 
 /// XGA commitment that cryptographically ties to a validator registration
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct XGACommitment {
+pub struct XgaCommitment {
     /// Hash of the validator registration this commitment is tied to
     #[serde(with = "commitment_hash_serde")]
     pub registration_hash: CommitmentHash,
@@ -109,7 +109,7 @@ pub struct XGACommitment {
     pub xga_version: u64,
 
     /// XGA-specific parameters
-    pub parameters: XGAParameters,
+    pub parameters: XgaParameters,
 
     /// Unix timestamp when this commitment was created
     pub timestamp: u64,
@@ -123,8 +123,8 @@ pub struct XGACommitment {
 
 /// Signed XGA commitment ready to be sent to relay
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SignedXGACommitment {
-    pub message: XGACommitment,
+pub struct SignedXgaCommitment {
+    pub message: XgaCommitment,
     pub signature: BlsSignature,
 }
 
@@ -141,25 +141,27 @@ pub struct RegistrationNotification {
     pub timestamp: u64,
 }
 
-impl XGACommitment {
+impl XgaCommitment {
     /// Get the tree hash root for this commitment
+    #[must_use]
     pub fn get_tree_hash_root(&self) -> tree_hash::Hash256 {
         // Call the manually implemented tree_hash_root directly
         <Self as tree_hash::TreeHash>::tree_hash_root(self)
     }
 
     /// Create a new XGA commitment from registration data
+    #[must_use]
     pub fn new(
         registration_hash: [u8; 32],
         validator_pubkey: BlsPublicKey,
-        relay_id: String,
+        relay_id: &str,
         chain_id: u64,
-        parameters: XGAParameters,
+        parameters: XgaParameters,
     ) -> Self {
         Self {
             registration_hash: CommitmentHash::from_bytes(registration_hash),
             validator_pubkey,
-            relay_id: RelayId::from_url(&relay_id),
+            relay_id: RelayId::from_url(relay_id),
             xga_version: 1,
             parameters,
             timestamp: get_current_timestamp().unwrap_or_else(|e| {
@@ -172,6 +174,7 @@ impl XGACommitment {
     }
 
     /// Compute the hash of a registration for linking
+    #[must_use]
     pub fn hash_registration(registration: &ValidatorRegistration) -> [u8; 32] {
         use sha2::{Digest, Sha256};
 
@@ -203,7 +206,7 @@ impl XGACommitment {
 }
 
 // Manual TreeHash implementation for XGACommitment
-impl tree_hash::TreeHash for XGACommitment {
+impl tree_hash::TreeHash for XgaCommitment {
     fn tree_hash_root(&self) -> tree_hash::Hash256 {
         // Create a vector with all the leaf hashes
         let leaves = vec![
@@ -254,31 +257,31 @@ mod tests {
         let validator_pubkey = BlsPublicKey::from([0x01u8; 48]);
 
         // Test that same relay URL produces same relay_id
-        let commitment1 = XGACommitment::new(
+        let commitment1 = XgaCommitment::new(
             registration_hash,
             validator_pubkey,
-            "https://relay.example.com".to_string(),
+            "https://relay.example.com",
             1,
-            XGAParameters::default(),
+            XgaParameters::default(),
         );
 
-        let commitment2 = XGACommitment::new(
+        let commitment2 = XgaCommitment::new(
             registration_hash,
             validator_pubkey,
-            "https://relay.example.com".to_string(),
+            "https://relay.example.com",
             1,
-            XGAParameters::default(),
+            XgaParameters::default(),
         );
 
         assert_eq!(commitment1.relay_id, commitment2.relay_id);
 
         // Test that different relay URLs produce different relay_ids
-        let commitment3 = XGACommitment::new(
+        let commitment3 = XgaCommitment::new(
             registration_hash,
             validator_pubkey,
-            "https://different-relay.example.com".to_string(),
+            "https://different-relay.example.com",
             1,
-            XGAParameters::default(),
+            XgaParameters::default(),
         );
 
         assert_ne!(commitment1.relay_id, commitment3.relay_id);
@@ -310,16 +313,16 @@ mod tests {
             signature: alloy_rpc_types::beacon::BlsSignature::from(signature_bytes),
         };
 
-        let hash1 = XGACommitment::hash_registration(&registration);
+        let hash1 = XgaCommitment::hash_registration(&registration);
 
         // Hash should be deterministic
-        let hash2 = XGACommitment::hash_registration(&registration);
+        let hash2 = XgaCommitment::hash_registration(&registration);
         assert_eq!(hash1, hash2);
 
         // Different registration should produce different hash
         let mut different_registration = registration.clone();
         different_registration.message.gas_limit = 25_000_000;
-        let hash3 = XGACommitment::hash_registration(&different_registration);
+        let hash3 = XgaCommitment::hash_registration(&different_registration);
         assert_ne!(hash1, hash3);
 
         // Verify SSZ encoding length
@@ -335,12 +338,12 @@ mod tests {
 
     #[test]
     fn test_tree_hash_deterministic() {
-        let commitment = XGACommitment::new(
+        let commitment = XgaCommitment::new(
             [0x42u8; 32],
             BlsPublicKey::from([0x01u8; 48]),
-            "test-relay".to_string(),
+            "test-relay",
             1,
-            XGAParameters {
+            XgaParameters {
                 version: 1,
                 min_inclusion_slot: 100,
                 max_inclusion_slot: 200,

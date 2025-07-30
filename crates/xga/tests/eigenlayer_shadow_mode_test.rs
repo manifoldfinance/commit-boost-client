@@ -1,7 +1,7 @@
 // Simple tests for shadow mode functionality
 use commit_boost::prelude::*;
 use xga_commitment::{
-    commitment::{XGACommitment, XGAParameters},
+    commitment::{XgaCommitment, XgaParameters},
     eigenlayer::EigenLayerConfig,
 };
 
@@ -24,12 +24,12 @@ fn test_eigenlayer_config_shadow_mode_only() {
 fn test_commitment_for_shadow_mode() {
     // Test that commitments work for shadow mode tracking
     let validator_pubkey = BlsPublicKey::from([1u8; 48]);
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [42u8; 32],
         validator_pubkey.clone(),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
     // Verify commitment can be created and hashed

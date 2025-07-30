@@ -4,8 +4,8 @@ use commit_boost::prelude::*;
 use eyre::Result;
 use tracing::{error, info};
 use xga_commitment::{
-    config::XGAConfig,
-    infrastructure::{CircuitBreaker, HttpClientFactory},
+    config::XgaConfig,
+    infrastructure::{CircuitBreaker, HttpClientFactory, ValidatorRateLimiter},
     poller::{poll_and_process_relay, RelayPoller},
 };
 
@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     info!("Starting XGA Commitment Module");
 
     // Load configuration
-    let config = load_commit_module_config::<XGAConfig>()?;
+    let config = load_commit_module_config::<XgaConfig>()?;
 
     // Validate configuration
     config.extra.validate()?;
@@ -36,6 +36,12 @@ async fn main() -> Result<()> {
         3,                       // failure threshold
         Duration::from_secs(60), // reset timeout
     ));
+    
+    // Create validator rate limiter
+    let validator_rate_limiter = Arc::new(ValidatorRateLimiter::new(
+        config.extra.validator_rate_limit.max_requests_per_validator,
+        Duration::from_secs(config.extra.validator_rate_limit.window_secs),
+    ));
 
     // Create poller
     let config_arc = Arc::new(config);
@@ -43,6 +49,7 @@ async fn main() -> Result<()> {
         config_arc.clone(),
         http_client_factory,
         circuit_breaker,
+        validator_rate_limiter,
     )?);
 
     info!("Starting polling loop");
@@ -68,7 +75,7 @@ async fn main() -> Result<()> {
 }
 
 async fn polling_loop(
-    config: Arc<StartCommitModuleConfig<XGAConfig>>,
+    config: Arc<StartCommitModuleConfig<XgaConfig>>,
     poller: Arc<RelayPoller>,
 ) -> Result<()> {
     let mut interval = tokio::time::interval(Duration::from_secs(

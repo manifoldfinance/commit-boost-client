@@ -9,7 +9,7 @@ pub mod http_client;
 pub use http_client::HttpClientFactory;
 
 pub mod rate_limiter;
-pub use rate_limiter::RateLimiter;
+pub use rate_limiter::{RateLimiter, ValidatorRateLimiter};
 
 pub mod utils;
 pub use utils::{get_current_timestamp, parse_and_validate_url, MAX_REQUEST_SIZE};

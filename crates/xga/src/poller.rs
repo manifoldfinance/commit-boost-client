@@ -12,15 +12,17 @@ use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    commitment::{RegistrationNotification, XGACommitment},
-    config::XGAConfig,
-    infrastructure::{CircuitBreaker, HttpClientFactory},
+    commitment::{RegistrationNotification, XgaCommitment},
+    config::XgaConfig,
+    infrastructure::{CircuitBreaker, HttpClientFactory, ValidatorRateLimiter},
     relay::check_xga_support,
     retry::{execute_with_retry, polling_retry_strategy},
     signer::process_commitment,
+    validation::validate_registration,
 };
 
 /// State tracking for polling
+#[derive(Default)]
 pub struct PollingState {
     /// Maps relay URL to last seen timestamp
     last_seen_registrations: HashMap<String, u64>,
@@ -28,9 +30,7 @@ pub struct PollingState {
 
 impl PollingState {
     pub fn new() -> Self {
-        Self {
-            last_seen_registrations: HashMap::new(),
-        }
+        Self::default()
     }
 
     pub fn get_last_seen(&self, relay_url: &str) -> Option<u64> {
@@ -50,22 +50,25 @@ struct RelayRegistrationsResponse {
 
 /// Main polling component
 pub struct RelayPoller {
-    config: Arc<StartCommitModuleConfig<XGAConfig>>,
+    config: Arc<StartCommitModuleConfig<XgaConfig>>,
     http_client_factory: Arc<HttpClientFactory>,
     circuit_breaker: Arc<CircuitBreaker>,
+    validator_rate_limiter: Arc<ValidatorRateLimiter>,
     state: Arc<Mutex<PollingState>>,
 }
 
 impl RelayPoller {
     pub fn new(
-        config: Arc<StartCommitModuleConfig<XGAConfig>>,
+        config: Arc<StartCommitModuleConfig<XgaConfig>>,
         http_client_factory: Arc<HttpClientFactory>,
         circuit_breaker: Arc<CircuitBreaker>,
+        validator_rate_limiter: Arc<ValidatorRateLimiter>,
     ) -> Result<Self> {
         Ok(Self {
             config,
             http_client_factory,
             circuit_breaker,
+            validator_rate_limiter,
             state: Arc::new(Mutex::new(PollingState::new())),
         })
     }
@@ -103,6 +106,20 @@ impl RelayPoller {
                 // Filter out registrations that are too old
                 let age = current_time.saturating_sub(reg.message.timestamp);
                 age <= self.config.extra.max_registration_age_secs
+            })
+            .filter(|reg| {
+                // Validate registration
+                match validate_registration(reg) {
+                    Ok(_) => true,
+                    Err(e) => {
+                        warn!(
+                            validator_pubkey = ?reg.message.pubkey,
+                            error = %e,
+                            "Invalid registration from relay, skipping"
+                        );
+                        false
+                    }
+                }
             })
             .map(|registration| RegistrationNotification {
                 registration,
@@ -188,14 +205,14 @@ impl RelayPoller {
         );
 
         // Create commitment
-        let registration_hash = XGACommitment::hash_registration(&notification.registration);
+        let registration_hash = XgaCommitment::hash_registration(&notification.registration);
         let pubkey_bytes: [u8; 48] = notification.registration.message.pubkey.0;
         let validator_pubkey = BlsPublicKey::from(pubkey_bytes);
 
-        let commitment = XGACommitment::new(
+        let commitment = XgaCommitment::new(
             registration_hash,
             validator_pubkey,
-            notification.relay_url.clone(),
+            &notification.relay_url,
             self.config.chain.id(),
             Default::default(),
         );
@@ -203,10 +220,11 @@ impl RelayPoller {
         // Process (sign and send)
         process_commitment(
             commitment,
-            notification.relay_url,
+            &notification.relay_url,
             self.config.clone(),
             &self.circuit_breaker,
             &self.http_client_factory,
+            &self.validator_rate_limiter,
         )
         .await?;
 
@@ -222,11 +240,11 @@ pub async fn poll_and_process_relay(
     debug!(relay_url = %relay_url, "Starting poll cycle");
 
     // Optional: Check relay capabilities
-    if poller.config.extra.probe_relay_capabilities {
-        if !check_xga_support(&relay_url, &poller.http_client_factory).await {
-            warn!(relay_url = %relay_url, "Relay does not support XGA");
-            return Ok(());
-        }
+    if poller.config.extra.probe_relay_capabilities
+        && !check_xga_support(&relay_url, &poller.http_client_factory).await
+    {
+        warn!(relay_url = %relay_url, "Relay does not support XGA");
+        return Ok(());
     }
 
     // Poll for registrations
@@ -267,12 +285,12 @@ mod tests {
         assert_eq!(state.get_last_seen(relay_url), None);
 
         // Update timestamp
-        state.update_last_seen(relay_url, 1234567890);
-        assert_eq!(state.get_last_seen(relay_url), Some(1234567890));
+        state.update_last_seen(relay_url, 1_234_567_890);
+        assert_eq!(state.get_last_seen(relay_url), Some(1_234_567_890));
 
         // Update again
-        state.update_last_seen(relay_url, 1234567900);
-        assert_eq!(state.get_last_seen(relay_url), Some(1234567900));
+        state.update_last_seen(relay_url, 1_234_567_900);
+        assert_eq!(state.get_last_seen(relay_url), Some(1_234_567_900));
     }
 
     // Removed test_relay_poller_creation as it requires full StartCommitModuleConfig

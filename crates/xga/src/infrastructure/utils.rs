@@ -6,23 +6,30 @@ use super::error::Error;
 pub const MAX_REQUEST_SIZE: usize = 1024 * 1024;
 
 /// Safe URL parsing and validation
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The URL cannot be parsed
+/// - The URL scheme is not HTTPS
+/// - The URL points to a local address
 pub fn parse_and_validate_url(url: &str) -> Result<url::Url> {
     let parsed = url::Url::parse(url)
-        .map_err(|e| Error::InvalidUrl(format!("Failed to parse URL '{}': {}", url, e)))?;
+        .map_err(|e| Error::InvalidUrl(format!("Failed to parse URL '{url}': {e}")))?;
 
     // Validate scheme
     if parsed.scheme() != "https" {
-        return Err(Error::InvalidUrl(format!("URL '{}' must use HTTPS scheme", url)).into());
+        return Err(Error::InvalidUrl(format!("URL '{url}' must use HTTPS scheme")).into());
     }
 
     // Validate host exists
     let host =
-        parsed.host_str().ok_or_else(|| Error::InvalidUrl(format!("URL '{}' has no host", url)))?;
+        parsed.host_str().ok_or_else(|| Error::InvalidUrl(format!("URL '{url}' has no host")))?;
 
     // Reject localhost and local IPs
     if is_local_address(host) {
         return Err(
-            Error::InvalidUrl(format!("URL '{}' must not point to local addresses", url)).into()
+            Error::InvalidUrl(format!("URL '{url}' must not point to local addresses")).into()
         );
     }
 
@@ -30,6 +37,7 @@ pub fn parse_and_validate_url(url: &str) -> Result<url::Url> {
 }
 
 /// Check if a host address is local
+#[must_use]
 fn is_local_address(host: &str) -> bool {
     matches!(
         host,
@@ -43,6 +51,7 @@ fn is_local_address(host: &str) -> bool {
 }
 
 /// Check if host is in the 172.16.0.0/12 private range
+#[must_use]
 fn is_private_172_range(host: &str) -> bool {
     if let Some(rest) = host.strip_prefix("172.") {
         if let Some(second_octet) = rest.split('.').next() {
@@ -55,6 +64,10 @@ fn is_private_172_range(host: &str) -> bool {
 }
 
 /// Get current timestamp with proper error handling
+///
+/// # Errors
+///
+/// Returns an error if the system time is before UNIX epoch
 pub fn get_current_timestamp() -> Result<u64> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -63,6 +76,7 @@ pub fn get_current_timestamp() -> Result<u64> {
 }
 
 /// Constant-time comparison for security-sensitive operations
+#[must_use]
 #[allow(dead_code)]
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
@@ -124,6 +138,6 @@ mod tests {
         assert!(timestamp > 0);
 
         // Verify it's a reasonable timestamp (after year 2020)
-        assert!(timestamp > 1577836800); // Jan 1, 2020
+        assert!(timestamp > 1_577_836_800); // Jan 1, 2020
     }
 }

@@ -18,7 +18,7 @@ use eyre::{Result, WrapErr};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, warn};
 
-use crate::{abi_helpers::*, commitment::XGACommitment};
+use crate::{abi_helpers::*, commitment::XgaCommitment};
 
 // XGARegistry contract interface - removed sol! macro usage
 
@@ -80,7 +80,7 @@ pub struct EigenLayerIntegration<P> {
     registry_address: Address,
     config: EigenLayerConfig,
     current_commitment_hash: Option<B256>,
-    cb_config: Arc<StartCommitModuleConfig<crate::config::XGAConfig>>,
+    cb_config: Arc<StartCommitModuleConfig<crate::config::XgaConfig>>,
     last_status_check: Option<ShadowModeStatus>,
 }
 
@@ -92,7 +92,7 @@ where
     pub async fn with_provider(
         provider: Arc<P>,
         config: EigenLayerConfig,
-        cb_config: Arc<StartCommitModuleConfig<crate::config::XGAConfig>>,
+        cb_config: Arc<StartCommitModuleConfig<crate::config::XgaConfig>>,
     ) -> Result<Self> {
         // Parse registry address
         let registry_address: Address =
@@ -304,7 +304,7 @@ where
     /// Register initial XGA commitment (shadow mode - tracking only)
     pub async fn register_commitment(
         &mut self,
-        commitment: &XGACommitment,
+        commitment: &XgaCommitment,
         validator_pubkey: BlsPublicKey,
     ) -> Result<()> {
         let commitment_hash = commitment.get_tree_hash_root();
@@ -351,7 +351,7 @@ where
     /// Update existing commitment (shadow mode - tracking only)
     pub async fn update_commitment(
         &mut self,
-        new_commitment: &XGACommitment,
+        new_commitment: &XgaCommitment,
         validator_pubkey: BlsPublicKey,
     ) -> Result<()> {
         let new_hash = new_commitment.get_tree_hash_root();
@@ -424,7 +424,7 @@ where
     /// Sign commitment using the same validator key as relay registration
     async fn sign_commitment(
         &self,
-        commitment: &XGACommitment,
+        commitment: &XgaCommitment,
         validator_pubkey: BlsPublicKey,
     ) -> Result<Bytes> {
         debug!(
@@ -539,7 +539,7 @@ impl EigenLayerIntegration<DefaultProvider> {
     /// Create new EigenLayer integration instance with default HTTP provider
     pub async fn new(
         config: EigenLayerConfig,
-        cb_config: Arc<StartCommitModuleConfig<crate::config::XGAConfig>>,
+        cb_config: Arc<StartCommitModuleConfig<crate::config::XgaConfig>>,
     ) -> Result<Self> {
         // Create provider without wallet (read-only for shadow mode)
         let rpc_url = config.rpc_url.parse()?;
@@ -562,7 +562,7 @@ where
 
         let result = self.provider.call(tx).await.wrap_err("Failed to call getPendingRewards")?;
 
-        decode_uint256(result)
+        decode_uint256(&result)
     }
 
     async fn get_operator_status(
@@ -575,7 +575,7 @@ where
 
         let result = self.provider.call(tx).await.wrap_err("Failed to call operators")?;
 
-        decode_operator_data(result)
+        decode_operator_data(&result)
     }
 
     async fn get_shadow_mode_status(&self, operator_address: Address) -> Result<ShadowModeStatus> {
@@ -596,7 +596,7 @@ where
         let penalty_result =
             self.provider.call(tx).await.wrap_err("Failed to call penaltyRates")?;
 
-        let penalty_rate = decode_uint256(penalty_result)?;
+        let penalty_rate = decode_uint256(&penalty_result)?;
 
         let blocks_active = if is_active {
             U256::from(last_reward_block.saturating_sub(registration_block))

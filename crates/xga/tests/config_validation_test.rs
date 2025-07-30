@@ -1,15 +1,16 @@
-use xga_commitment::{config::{XGAConfig, RetryConfig}, eigenlayer::EigenLayerConfig};
+use xga_commitment::{config::{XgaConfig, RetryConfig}, eigenlayer::EigenLayerConfig};
 
 #[test]
 fn test_polling_interval_minimum_boundary() {
     // Test polling_interval < 1 (should fail)
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 0,
         xga_relays: vec!["https://relay.example.com".to_string()],
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
         retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();
@@ -20,13 +21,14 @@ fn test_polling_interval_minimum_boundary() {
 #[test]
 fn test_polling_interval_maximum_boundary() {
     // Test polling_interval > 3600 (should fail)
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 3601,
         xga_relays: vec!["https://relay.example.com".to_string()],
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
         retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();
@@ -37,13 +39,14 @@ fn test_polling_interval_maximum_boundary() {
 #[test]
 fn test_polling_interval_valid() {
     // Test valid polling interval
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 5,
         xga_relays: vec!["https://relay.example.com".to_string()],
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
         retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();
@@ -53,13 +56,14 @@ fn test_polling_interval_valid() {
 #[test]
 fn test_max_registration_age_zero() {
     // Test max_registration_age_secs < 1 (should fail)
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 5,
         xga_relays: vec!["https://relay.example.com".to_string()],
         max_registration_age_secs: 0,
         probe_relay_capabilities: false,
         retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();
@@ -70,13 +74,14 @@ fn test_max_registration_age_zero() {
 #[test]
 fn test_max_registration_age_too_high() {
     // Test max_registration_age_secs > 600 (should fail)
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 5,
         xga_relays: vec!["https://relay.example.com".to_string()],
         max_registration_age_secs: 601,
         probe_relay_capabilities: false,
         retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();
@@ -87,7 +92,7 @@ fn test_max_registration_age_too_high() {
 #[test]
 fn test_retry_config_max_retries_reasonable() {
     // Test reasonable retry config
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 5,
         xga_relays: vec!["https://relay.example.com".to_string()],
         max_registration_age_secs: 60,
@@ -98,6 +103,7 @@ fn test_retry_config_max_retries_reasonable() {
             max_backoff_secs: 60,
         },
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();
@@ -107,13 +113,14 @@ fn test_retry_config_max_retries_reasonable() {
 #[test]
 fn test_relay_url_validation() {
     // Test invalid relay URL (HTTP instead of HTTPS)
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 5,
         xga_relays: vec!["http://relay.example.com".to_string()],
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
         retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();
@@ -124,13 +131,14 @@ fn test_relay_url_validation() {
 #[test]
 fn test_empty_relays_invalid() {
     // Empty relay list should be invalid
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 5,
         xga_relays: vec![],
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
         retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();
@@ -144,7 +152,7 @@ fn test_empty_relays_invalid() {
 #[test]
 fn test_multiple_valid_relays() {
     // Test multiple valid relay URLs
-    let config = XGAConfig {
+    let config = XgaConfig {
         polling_interval_secs: 5,
         xga_relays: vec![
             "https://relay1.example.com".to_string(),
@@ -155,6 +163,7 @@ fn test_multiple_valid_relays() {
         probe_relay_capabilities: false,
         retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
+        validator_rate_limit: Default::default(),
     };
 
     let result = config.validate();

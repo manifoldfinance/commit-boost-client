@@ -5,7 +5,7 @@ use commit_boost::prelude::*;
 use eyre::Result;
 use tracing::{error, info};
 use xga_commitment::{
-    config::XGAConfig,
+    config::XgaConfig,
     eigenlayer::{DefaultEigenLayerIntegration, EigenLayerQueries},
 };
 
@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     // Load configuration
-    let config = load_commit_module_config::<XGAConfig>()?;
+    let config = load_commit_module_config::<XgaConfig>()?;
 
     // Ensure EigenLayer is enabled
     if !config.extra.eigenlayer.enabled {
@@ -81,10 +81,10 @@ async fn main() -> Result<()> {
 async fn handle_eigenlayer_command(
     cmd: EigenLayerCommand,
     eigenlayer: &mut DefaultEigenLayerIntegration,
-    config: &Arc<StartCommitModuleConfig<XGAConfig>>,
+    config: &Arc<StartCommitModuleConfig<XgaConfig>>,
 ) -> Result<()> {
     use alloy::primitives::Address;
-    use xga_commitment::commitment::{XGACommitment, XGAParameters};
+    use xga_commitment::commitment::{XgaCommitment, XgaParameters};
 
     match cmd {
         EigenLayerCommand::Status { operator_address } => {
@@ -149,12 +149,12 @@ async fn handle_eigenlayer_command(
             }
 
             // Create commitment for tracking
-            let commitment = XGACommitment::new(
+            let commitment = XgaCommitment::new(
                 [0u8; 32],  // Would be actual registration hash from relay
                 pubkeys[0], // Using first validator for simplicity
-                "manual-update".to_string(),
+                "manual-update",
                 config.chain.id(),
-                XGAParameters::default(),
+                XgaParameters::default(),
             );
 
             eigenlayer.update_commitment(&commitment, pubkeys[0]).await?;

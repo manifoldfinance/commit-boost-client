@@ -5,8 +5,8 @@ use commit_boost::prelude::BlsPublicKey;
 use proptest::prelude::*;
 
 use crate::{
-    commitment::{RegistrationNotification, XGACommitment, XGAParameters},
-    config::XGAConfig,
+    commitment::{RegistrationNotification, XgaCommitment, XgaParameters},
+    config::XgaConfig,
     infrastructure::get_current_timestamp,
 };
 
@@ -61,7 +61,7 @@ pub fn arb_invalid_url() -> impl Strategy<Value = String> {
 }
 
 /// Generate arbitrary XGA parameters
-pub fn arb_xga_parameters() -> impl Strategy<Value = XGAParameters> {
+pub fn arb_xga_parameters() -> impl Strategy<Value = XgaParameters> {
     (
         any::<u64>(), // version
         any::<u64>(), // min_inclusion_slot
@@ -73,15 +73,15 @@ pub fn arb_xga_parameters() -> impl Strategy<Value = XGAParameters> {
             let (min_inclusion_slot, max_inclusion_slot) =
                 if min_slot <= max_slot { (min_slot, max_slot) } else { (max_slot, min_slot) };
 
-            XGAParameters { version, min_inclusion_slot, max_inclusion_slot, flags }
+            XgaParameters { version, min_inclusion_slot, max_inclusion_slot, flags }
         })
 }
 
 /// Generate arbitrary XGA commitment
-pub fn arb_xga_commitment() -> impl Strategy<Value = XGACommitment> {
+pub fn arb_xga_commitment() -> impl Strategy<Value = XgaCommitment> {
     (arb_bytes::<32>(), arb_bytes::<48>(), arb_valid_url(), any::<u64>(), arb_xga_parameters())
         .prop_map(|(reg_hash, pubkey, relay_url, chain_id, params)| {
-            XGACommitment::new(reg_hash, BlsPublicKey::from(pubkey), relay_url, chain_id, params)
+            XgaCommitment::new(reg_hash, BlsPublicKey::from(pubkey), &relay_url, chain_id, params)
         })
 }
 
@@ -148,20 +148,21 @@ pub fn arb_valid_registration_notification() -> impl Strategy<Value = Registrati
 }
 
 /// Generate arbitrary XGA config
-pub fn arb_xga_config() -> impl Strategy<Value = XGAConfig> {
+pub fn arb_xga_config() -> impl Strategy<Value = XgaConfig> {
     (
         1u64..86400,    // max_registration_age_secs (1 sec to 1 day)
         1u64..3600,     // polling_interval_secs (1 sec to 1 hour)
         prop::collection::vec(arb_valid_url(), 0..10), // xga_relays
         any::<bool>(),  // probe_relay_capabilities
     )
-        .prop_map(|(age, polling_interval, relays, probe)| XGAConfig {
+        .prop_map(|(age, polling_interval, relays, probe)| XgaConfig {
             max_registration_age_secs: age,
             polling_interval_secs: polling_interval,
             xga_relays: relays,
             probe_relay_capabilities: probe,
             retry_config: Default::default(),
             eigenlayer: Default::default(),
+            validator_rate_limit: Default::default(),
         })
 }
 
@@ -190,8 +191,8 @@ mod tests {
 
         #[test]
         fn test_registration_hash_deterministic(reg in arb_validator_registration()) {
-            let hash1 = XGACommitment::hash_registration(&reg);
-            let hash2 = XGACommitment::hash_registration(&reg);
+            let hash1 = XgaCommitment::hash_registration(&reg);
+            let hash2 = XgaCommitment::hash_registration(&reg);
             assert_eq!(hash1, hash2);
         }
     }
