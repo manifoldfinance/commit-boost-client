@@ -151,21 +151,16 @@ pub fn arb_valid_registration_notification() -> impl Strategy<Value = Registrati
 pub fn arb_xga_config() -> impl Strategy<Value = XGAConfig> {
     (
         1u64..86400,    // max_registration_age_secs (1 sec to 1 day)
-        1024u16..65535, // webhook_port
-        0u64..10000,    // commitment_delay_ms
+        1u64..3600,     // polling_interval_secs (1 sec to 1 hour)
         prop::collection::vec(arb_valid_url(), 0..10), // xga_relays
-        1u32..10,       // retry_attempts
-        100u64..5000,   // retry_delay_ms
         any::<bool>(),  // probe_relay_capabilities
     )
-        .prop_map(|(age, port, delay, relays, attempts, retry_delay, probe)| XGAConfig {
+        .prop_map(|(age, polling_interval, relays, probe)| XGAConfig {
             max_registration_age_secs: age,
-            webhook_port: port,
-            commitment_delay_ms: delay,
+            polling_interval_secs: polling_interval,
             xga_relays: relays,
-            retry_attempts: attempts,
-            retry_delay_ms: retry_delay,
             probe_relay_capabilities: probe,
+            retry_config: Default::default(),
             eigenlayer: Default::default(),
         })
 }

@@ -6,10 +6,9 @@ use tracing::{debug, error, info, warn};
 
 use crate::{
     commitment::SignedXGACommitment,
-    infrastructure::{CircuitBreaker, Error as XGAError, HttpClientFactory},
-    metrics::{
-        COMMITMENTS_ACCEPTED, COMMITMENTS_REJECTED, COMMITMENTS_SENT, RELAY_ERRORS, RELAY_METRICS,
-    },
+    config::RetryConfig,
+    infrastructure::HttpClientFactory,
+    retry::{execute_with_retry, relay_send_retry_strategy},
 };
 
 /// Response from XGA relay
@@ -24,102 +23,65 @@ struct XGARelayResponse {
 pub async fn send_to_relay(
     signed_commitment: SignedXGACommitment,
     relay_url: String,
-    max_retries: u32,
-    retry_delay_ms: u64,
-    circuit_breaker: &CircuitBreaker,
+    retry_config: &RetryConfig,
     http_client_factory: &HttpClientFactory,
 ) -> eyre::Result<()> {
-    // Check circuit breaker first
-    if circuit_breaker.is_open(&relay_url).await {
-        return Err(XGAError::CircuitBreakerOpen(relay_url.clone()).into());
-    }
-
     // Create client using factory
     let client = http_client_factory.create_client()?;
 
     // Construct XGA endpoint URL
     let xga_endpoint = format!("{}/eth/v1/builder/xga/commitment", relay_url.trim_end_matches('/'));
 
-    let mut attempts = 0;
-    let mut last_error = None;
+    let strategy = relay_send_retry_strategy(retry_config);
 
-    while attempts < max_retries {
-        attempts += 1;
+    let result = execute_with_retry(strategy, || {
+        let client = &client;
+        let xga_endpoint = &xga_endpoint;
+        let signed_commitment = &signed_commitment;
+        
+        async move {
+            use tokio_retry2::RetryError;
+            
+            debug!(
+                validator_pubkey = ?signed_commitment.message.validator_pubkey,
+                relay_id = ?signed_commitment.message.relay_id,
+                "Sending XGA commitment to relay"
+            );
 
-        debug!(
-            validator_pubkey = ?signed_commitment.message.validator_pubkey,
-            relay_id = ?signed_commitment.message.relay_id,
-            attempt = attempts,
-            "Sending XGA commitment to relay"
-        );
-
-        match send_commitment(&client, &xga_endpoint, &signed_commitment).await {
-            Ok(()) => {
-                COMMITMENTS_SENT.inc();
-                COMMITMENTS_ACCEPTED.inc();
-
-                // Track relay-specific metrics
-                RELAY_METRICS.with_label_values(&["relay", "commitment_sent", "success"]).inc();
-
-                // Record success in circuit breaker
-                circuit_breaker.record_success(&relay_url).await;
-
-                info!(
-                    validator_pubkey = ?signed_commitment.message.validator_pubkey,
-                    relay_id = ?signed_commitment.message.relay_id,
-                    "Successfully sent XGA commitment to relay"
-                );
-                return Ok(());
-            }
-            Err(e) => {
-                last_error = Some(e);
-
-                // Record failure in circuit breaker
-                circuit_breaker.record_failure(&relay_url).await;
-
-                if attempts < max_retries {
-                    if let Some(ref err) = last_error {
-                        warn!(
-                            validator_pubkey = ?signed_commitment.message.validator_pubkey,
-                            relay_id = ?signed_commitment.message.relay_id,
-                            attempt = attempts,
-                            error = %err,
-                            "Failed to send XGA commitment, retrying"
-                        );
-                    }
-
-                    tokio::time::sleep(Duration::from_millis(retry_delay_ms)).await;
+            match send_commitment(client, xga_endpoint, signed_commitment).await {
+                Ok(()) => {
+                    info!(
+                        validator_pubkey = ?signed_commitment.message.validator_pubkey,
+                        relay_id = ?signed_commitment.message.relay_id,
+                        "Successfully sent XGA commitment to relay"
+                    );
+                    Ok(())
+                }
+                Err(e) => {
+                    warn!(
+                        validator_pubkey = ?signed_commitment.message.validator_pubkey,
+                        relay_id = ?signed_commitment.message.relay_id,
+                        error = %e,
+                        "Failed to send XGA commitment"
+                    );
+                    // Always retry on send failures
+                    Err(RetryError::transient(e))
                 }
             }
         }
-    }
+    })
+    .await;
 
-    // All retries failed
-    RELAY_ERRORS.inc();
-    COMMITMENTS_REJECTED.inc();
-
-    // Track relay-specific failure metrics
-    RELAY_METRICS.with_label_values(&["relay", "commitment_sent", "failed"]).inc();
-
-    match last_error {
-        Some(err) => {
+    match result {
+        Ok(()) => Ok(()),
+        Err(e) => {
             error!(
                 validator_pubkey = ?signed_commitment.message.validator_pubkey,
                 relay_id = ?signed_commitment.message.relay_id,
-                attempts = attempts,
-                error = %err,
+                error = %e,
                 "Failed to send XGA commitment after all retries"
             );
-            Err(err)
-        }
-        None => {
-            error!(
-                validator_pubkey = ?signed_commitment.message.validator_pubkey,
-                relay_id = ?signed_commitment.message.relay_id,
-                attempts = attempts,
-                "Failed to send XGA commitment after all retries (no error details)"
-            );
-            Err(eyre::eyre!("Failed to send XGA commitment after {} retries", attempts))
+            Err(e)
         }
     }
 }
@@ -180,7 +142,6 @@ pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClient
         Ok(c) => c,
         Err(e) => {
             error!("Failed to create HTTP client: {}", e);
-            RELAY_METRICS.with_label_values(&["relay", "capability_check", "error"]).inc();
             return false;
         }
     };
@@ -200,7 +161,6 @@ pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClient
                     relay_url = relay_url,
                     "Relay advertises XGA support via capabilities endpoint"
                 );
-                RELAY_METRICS.with_label_values(&["relay", "capability_check", "supported"]).inc();
                 return true;
             }
         }
@@ -223,9 +183,6 @@ pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClient
                             relay_url = relay_url,
                             "Relay supports POST to XGA commitment endpoint"
                         );
-                        RELAY_METRICS
-                            .with_label_values(&["relay", "capability_check", "supported"])
-                            .inc();
                         return true;
                     }
                 }
@@ -234,7 +191,6 @@ pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClient
             // Also check for custom XGA headers
             if response.headers().contains_key("x-xga-supported") {
                 info!(relay_url = relay_url, "Relay advertises XGA support via custom header");
-                RELAY_METRICS.with_label_values(&["relay", "capability_check", "supported"]).inc();
                 return true;
             }
         }
@@ -253,9 +209,6 @@ pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClient
                         relay_url = relay_url,
                         "XGA endpoint not found - relay does not support XGA"
                     );
-                    RELAY_METRICS
-                        .with_label_values(&["relay", "capability_check", "not_supported"])
-                        .inc();
                     false
                 }
                 StatusCode::METHOD_NOT_ALLOWED => {
@@ -264,9 +217,6 @@ pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClient
                         relay_url = relay_url,
                         "XGA endpoint exists (HEAD not allowed) - assuming XGA support"
                     );
-                    RELAY_METRICS
-                        .with_label_values(&["relay", "capability_check", "supported"])
-                        .inc();
                     true
                 }
                 _ => {
@@ -275,9 +225,6 @@ pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClient
                         status = ?response.status(),
                         "XGA endpoint responded - assuming XGA support"
                     );
-                    RELAY_METRICS
-                        .with_label_values(&["relay", "capability_check", "supported"])
-                        .inc();
                     true
                 }
             }

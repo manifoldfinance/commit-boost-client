@@ -23,12 +23,10 @@ pub struct CircuitBreaker {
 }
 
 impl CircuitBreaker {
-    /// Create a new circuit breaker with specified failure threshold and reset
-    /// timeout
+    /// Create a new circuit breaker with specified failure threshold and reset timeout
     pub fn new(failure_threshold: u32, reset_timeout: Duration) -> Self {
         Self {
-            states: Arc::new(RwLock::new(HashMap::with_capacity(10))), /* Pre-allocate for
-                                                                        * typical relay count */
+            states: Arc::new(RwLock::new(HashMap::with_capacity(10))),
             failure_threshold,
             reset_timeout,
         }

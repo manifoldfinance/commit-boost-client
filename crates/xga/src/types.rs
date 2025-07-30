@@ -89,52 +89,6 @@ impl AsRef<[u8]> for CommitmentHash {
     }
 }
 
-/// Type-safe wrapper for nonces
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Nonce([u8; 32]);
-
-impl Nonce {
-    /// Generate a new random nonce
-    pub fn generate() -> Self {
-        use rand::Rng;
-        let mut nonce = [0u8; 32];
-        rand::thread_rng().fill(&mut nonce);
-        Self(nonce)
-    }
-
-    /// Create a nonce from raw bytes
-    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-
-    /// Get the raw bytes
-    pub const fn as_bytes(&self) -> &[u8; 32] {
-        &self.0
-    }
-
-    /// Convert to owned byte array
-    pub const fn into_bytes(self) -> [u8; 32] {
-        self.0
-    }
-}
-
-impl fmt::Display for Nonce {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.0))
-    }
-}
-
-impl From<[u8; 32]> for Nonce {
-    fn from(bytes: [u8; 32]) -> Self {
-        Self(bytes)
-    }
-}
-
-impl AsRef<[u8]> for Nonce {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -155,14 +109,6 @@ mod tests {
         assert_ne!(id1, id2);
     }
 
-    #[test]
-    fn test_nonce_generation() {
-        let nonce1 = Nonce::generate();
-        let nonce2 = Nonce::generate();
-
-        // Generated nonces should be different
-        assert_ne!(nonce1, nonce2);
-    }
 
     #[test]
     fn test_type_conversions() {
@@ -174,8 +120,5 @@ mod tests {
 
         let commitment_hash = CommitmentHash::from(bytes);
         assert_eq!(commitment_hash.as_bytes(), &bytes);
-
-        let nonce = Nonce::from_bytes(bytes);
-        assert_eq!(nonce.as_bytes(), &bytes);
     }
 }

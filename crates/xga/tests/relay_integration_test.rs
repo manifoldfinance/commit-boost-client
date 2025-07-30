@@ -1,10 +1,9 @@
-use std::time::Duration;
-
 use commit_boost::prelude::*;
 use mockito::ServerGuard;
 use xga_commitment::{
     commitment::{SignedXGACommitment, XGACommitment, XGAParameters},
-    infrastructure::{CircuitBreaker, HttpClientFactory},
+    config::RetryConfig,
+    infrastructure::HttpClientFactory,
     relay::{check_xga_support, send_to_relay},
 };
 
@@ -147,9 +146,13 @@ async fn test_send_commitment_success() {
 
     let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
 
-    let circuit_breaker = CircuitBreaker::new(3, Duration::from_secs(60));
     let http_client_factory = HttpClientFactory::new();
-    let result = send_to_relay(signed, url, 1, 100, &circuit_breaker, &http_client_factory).await;
+    let retry_config = RetryConfig {
+        max_retries: 1,
+        initial_backoff_ms: 100,
+        max_backoff_secs: 5,
+    };
+    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
     assert!(result.is_ok());
 }
 
@@ -184,9 +187,13 @@ async fn test_send_commitment_retry_logic() {
 
     let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
 
-    let circuit_breaker = CircuitBreaker::new(3, Duration::from_secs(60));
     let http_client_factory = HttpClientFactory::new();
-    let result = send_to_relay(signed, url, 3, 10, &circuit_breaker, &http_client_factory).await;
+    let retry_config = RetryConfig {
+        max_retries: 3,
+        initial_backoff_ms: 10,
+        max_backoff_secs: 5,
+    };
+    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
     assert!(result.is_ok());
 }
 
@@ -213,9 +220,13 @@ async fn test_send_commitment_all_retries_fail() {
 
     let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
 
-    let circuit_breaker = CircuitBreaker::new(3, Duration::from_secs(60));
     let http_client_factory = HttpClientFactory::new();
-    let result = send_to_relay(signed, url, 3, 10, &circuit_breaker, &http_client_factory).await;
+    let retry_config = RetryConfig {
+        max_retries: 3,
+        initial_backoff_ms: 10,
+        max_backoff_secs: 5,
+    };
+    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
     assert!(result.is_err());
 }
 
@@ -256,9 +267,13 @@ async fn test_send_commitment_edge_cases() {
     let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
 
     // Server error response should be handled as an error
-    let circuit_breaker = CircuitBreaker::new(3, Duration::from_secs(60));
     let http_client_factory = HttpClientFactory::new();
-    let result = send_to_relay(signed, url, 1, 100, &circuit_breaker, &http_client_factory).await;
+    let retry_config = RetryConfig {
+        max_retries: 1,
+        initial_backoff_ms: 100,
+        max_backoff_secs: 5,
+    };
+    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
     assert!(result.is_err());
 }
 
@@ -278,8 +293,12 @@ async fn test_send_commitment_timeout() {
     let signed = SignedXGACommitment { message: commitment, signature: BlsSignature::default() };
 
     // Connection should fail/timeout
-    let circuit_breaker = CircuitBreaker::new(3, Duration::from_secs(60));
     let http_client_factory = HttpClientFactory::new();
-    let result = send_to_relay(signed, url, 1, 50, &circuit_breaker, &http_client_factory).await;
+    let retry_config = RetryConfig {
+        max_retries: 1,
+        initial_backoff_ms: 50,
+        max_backoff_secs: 5,
+    };
+    let result = send_to_relay(signed, url, &retry_config, &http_client_factory).await;
     assert!(result.is_err());
 }

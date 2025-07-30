@@ -25,11 +25,7 @@ alloy-rpc-types = { version = "0.12.5", features = ["beacon"] }
 
 # Async runtime
 tokio = { version = "1.35", features = ["full"] }
-
-# Web framework for webhook
-axum = "0.7"
-tower = "0.4"
-tower-http = { version = "0.6", features = ["trace", "cors", "limit"] }
+tokio-retry2 = { version = "0.5", features = ["jitter"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -61,8 +57,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 eyre = "0.6"
 thiserror = "1.0"
 
-# Metrics
-prometheus = "0.13"
+# Lazy initialization
 lazy_static = "1.4"
 once_cell = "1.19"
 
