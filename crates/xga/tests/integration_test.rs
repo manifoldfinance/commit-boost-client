@@ -1,19 +1,19 @@
 use commit_boost::prelude::*;
-use xga_commitment::commitment::{XGACommitment, XGAParameters};
+use xga_commitment::commitment::{XgaCommitment, XgaParameters};
 
 #[test]
 fn test_commitment_hash_consistency() {
     // Create two identical commitments
     let registration_hash = [1u8; 32];
     let validator_pubkey = BlsPublicKey::from([2u8; 48]);
-    let relay_id = "test-relay".to_string();
+    let relay_id = "test-relay";
     let chain_id = 1;
-    let params = XGAParameters::default();
+    let params = XgaParameters::default();
 
-    let commitment1 = XGACommitment::new(
+    let commitment1 = XgaCommitment::new(
         registration_hash,
         validator_pubkey,
-        relay_id.clone(),
+        relay_id,
         chain_id,
         params.clone(),
     );
@@ -23,7 +23,7 @@ fn test_commitment_hash_consistency() {
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let commitment2 =
-        XGACommitment::new(registration_hash, validator_pubkey, relay_id, chain_id, params);
+        XgaCommitment::new(registration_hash, validator_pubkey, relay_id, chain_id, params);
 
     // Timestamps should be different (in seconds)
     assert!(commitment2.timestamp >= commitment1.timestamp + 1);
@@ -40,7 +40,7 @@ fn test_commitment_hash_consistency() {
 
 #[test]
 fn test_xga_parameters_default() {
-    let params = XGAParameters::default();
+    let params = XgaParameters::default();
     assert_eq!(params.version, 1);
     assert_eq!(params.min_inclusion_slot, 0);
     assert_eq!(params.max_inclusion_slot, 0);
@@ -50,12 +50,12 @@ fn test_xga_parameters_default() {
 #[test]
 fn test_commitment_edge_cases() {
     // Test with empty relay ID
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [0u8; 32],                     // zero registration hash
         BlsPublicKey::from([0u8; 48]), // zero pubkey
-        "".to_string(),                // empty relay ID
+        "",                            // empty relay ID
         0,                             // chain ID 0
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
     // Should still be valid, even with edge case values
@@ -65,12 +65,12 @@ fn test_commitment_edge_cases() {
 
     // Test with very long relay ID
     let long_relay_id = "a".repeat(1000);
-    let commitment_long = XGACommitment::new(
+    let commitment_long = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::from([2u8; 48]),
-        long_relay_id.clone(),
+        &long_relay_id,
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
     // relay_id is hashed to [u8; 32], so verify length not content
     assert_eq!(commitment_long.relay_id.as_bytes().len(), 32);
@@ -79,17 +79,17 @@ fn test_commitment_edge_cases() {
 #[test]
 fn test_xga_parameters_boundary_values() {
     // Test with maximum values
-    let max_params = XGAParameters {
+    let max_params = XgaParameters {
         version: u64::MAX,
         min_inclusion_slot: u64::MAX,
         max_inclusion_slot: u64::MAX,
         flags: u64::MAX,
     };
 
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::from([2u8; 48]),
-        "test-relay".to_string(),
+        "test-relay",
         1,
         max_params.clone(),
     );
@@ -100,17 +100,17 @@ fn test_xga_parameters_boundary_values() {
     assert_eq!(commitment.parameters.flags, u64::MAX);
 
     // Test with min > max slots (invalid but should handle gracefully)
-    let invalid_params = XGAParameters {
+    let invalid_params = XgaParameters {
         version: 1,
         min_inclusion_slot: 100,
         max_inclusion_slot: 50, // less than min
         flags: 0,
     };
 
-    let commitment_invalid = XGACommitment::new(
+    let commitment_invalid = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::from([2u8; 48]),
-        "test-relay".to_string(),
+        "test-relay",
         1,
         invalid_params,
     );

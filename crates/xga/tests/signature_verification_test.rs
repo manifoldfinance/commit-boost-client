@@ -1,7 +1,7 @@
 use blst::min_pk::SecretKey;
 use commit_boost::prelude::*;
 use xga_commitment::{
-    commitment::{XGACommitment, XGAParameters},
+    commitment::{XgaCommitment, XgaParameters},
     signer::verify_signature,
 };
 
@@ -17,12 +17,12 @@ fn test_signature_verification_flow() {
     let validator_pubkey = BlsPublicKey::from(pk_bytes);
 
     // Create a test commitment
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [1u8; 32], // registration hash
         validator_pubkey.clone(),
-        "test-relay".to_string(),
+        "test-relay",
         1, // mainnet
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
     // Get the message to sign (TreeHash root)
@@ -58,12 +58,12 @@ fn test_signature_verification_flow() {
 #[test]
 fn test_signature_verification_invalid_key_formats() {
     // Test with malformed public key (wrong length)
-    let commitment = XGACommitment::new(
+    let commitment = XgaCommitment::new(
         [1u8; 32],
         BlsPublicKey::from([2u8; 48]),
-        "test-relay".to_string(),
+        "test-relay",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
     let signature = BlsSignature::from([3u8; 96]);
@@ -95,12 +95,12 @@ fn test_signature_verification_different_commitments() {
     let validator_pubkey = BlsPublicKey::from(pk_bytes);
 
     // Create first commitment and sign it
-    let commitment1 = XGACommitment::new(
+    let commitment1 = XgaCommitment::new(
         [1u8; 32],
         validator_pubkey.clone(),
-        "relay1".to_string(),
+        "relay1",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
     let message1 = commitment1.get_tree_hash_root();
@@ -109,12 +109,12 @@ fn test_signature_verification_different_commitments() {
     let signature1 = BlsSignature::from(sig1.compress());
 
     // Create second commitment (different relay)
-    let commitment2 = XGACommitment::new(
+    let commitment2 = XgaCommitment::new(
         [1u8; 32],
         validator_pubkey.clone(),
-        "relay2".to_string(),
+        "relay2",
         1,
-        XGAParameters::default(),
+        XgaParameters::default(),
     );
 
     // Verify signatures match their commitments

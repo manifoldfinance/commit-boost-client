@@ -45,6 +45,8 @@ blst = "0.3"
 hex = "0.4"
 sha2 = "0.10"
 rand = "0.8"
+hmac = "0.12"
+constant_time_eq = "0.3"
 
 # HTTP client for relay communication
 reqwest = { version = "0.11", features = ["json"] }
@@ -73,7 +75,5 @@ mockito = "1.2"
 proptest = "1.4"
 # Fuzzing utilities
 arbitrary = { version = "1.3", features = ["derive"] }
-# Mutation testing
-cargo-mutants = "24.0"
 
 [build-dependencies]

@@ -5,7 +5,7 @@ use serde::Deserialize;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    commitment::SignedXGACommitment,
+    commitment::SignedXgaCommitment,
     config::RetryConfig,
     infrastructure::HttpClientFactory,
     retry::{execute_with_retry, relay_send_retry_strategy},
@@ -13,7 +13,7 @@ use crate::{
 
 /// Response from XGA relay
 #[derive(Debug, Deserialize)]
-struct XGARelayResponse {
+struct XgaRelayResponse {
     success: bool,
     message: Option<String>,
     commitment_id: Option<String>,
@@ -21,8 +21,8 @@ struct XGARelayResponse {
 
 /// Send signed XGA commitment to relay
 pub async fn send_to_relay(
-    signed_commitment: SignedXGACommitment,
-    relay_url: String,
+    signed_commitment: SignedXgaCommitment,
+    relay_url: &str,
     retry_config: &RetryConfig,
     http_client_factory: &HttpClientFactory,
 ) -> eyre::Result<()> {
@@ -90,7 +90,7 @@ pub async fn send_to_relay(
 async fn send_commitment(
     client: &Client,
     endpoint: &str,
-    signed_commitment: &SignedXGACommitment,
+    signed_commitment: &SignedXgaCommitment,
 ) -> eyre::Result<()> {
     let response = client.post(endpoint).json(signed_commitment).send().await?;
 
@@ -99,7 +99,7 @@ async fn send_commitment(
     match status {
         StatusCode::OK | StatusCode::CREATED | StatusCode::ACCEPTED => {
             // Try to parse response
-            match response.json::<XGARelayResponse>().await {
+            match response.json::<XgaRelayResponse>().await {
                 Ok(relay_response) => {
                     if relay_response.success {
                         debug!(
@@ -246,21 +246,21 @@ mod tests {
 
     use super::*;
     use crate::{
-        commitment::{XGACommitment, XGAParameters},
+        commitment::{XgaCommitment, XgaParameters},
         infrastructure::HttpClientFactory,
     };
 
     #[tokio::test]
     async fn test_send_commitment_error_handling() {
-        let commitment = XGACommitment::new(
+        let commitment = XgaCommitment::new(
             [0x42u8; 32],
             BlsPublicKey::from([0x01u8; 48]),
-            "test-relay".to_string(),
+            "test-relay",
             1,
-            XGAParameters::default(),
+            XgaParameters::default(),
         );
 
-        let signed = SignedXGACommitment {
+        let signed = SignedXgaCommitment {
             message: commitment,
             signature: BlsSignature::from([0x02u8; 96]),
         };

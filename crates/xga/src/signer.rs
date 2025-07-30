@@ -4,25 +4,39 @@ use commit_boost::prelude::*;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    commitment::{SignedXGACommitment, XGACommitment},
-    config::XGAConfig,
-    infrastructure::{CircuitBreaker, HttpClientFactory},
+    commitment::{SignedXgaCommitment, XgaCommitment},
+    config::XgaConfig,
+    infrastructure::{CircuitBreaker, HttpClientFactory, ValidatorRateLimiter},
     relay::send_to_relay,
+    validation::validate_commitment,
 };
 
 /// Process a commitment by signing it and sending to the relay
 pub async fn process_commitment(
-    commitment: XGACommitment,
-    relay_url: String,
-    config: Arc<StartCommitModuleConfig<XGAConfig>>,
+    commitment: XgaCommitment,
+    relay_url: &str,
+    config: Arc<StartCommitModuleConfig<XgaConfig>>,
     _circuit_breaker: &CircuitBreaker,
     http_client_factory: &HttpClientFactory,
+    validator_rate_limiter: &ValidatorRateLimiter,
 ) -> eyre::Result<()> {
     info!(
         validator_pubkey = ?commitment.validator_pubkey,
         relay_id = ?commitment.relay_id,
         "Processing XGA commitment"
     );
+
+    // Validate the commitment first
+    validate_commitment(&commitment)?;
+
+    // Check rate limit for this validator
+    if !validator_rate_limiter.check_rate_limit(&commitment.validator_pubkey).await {
+        warn!(
+            validator_pubkey = ?commitment.validator_pubkey,
+            "Rate limit exceeded for validator"
+        );
+        return Err(eyre::eyre!("Rate limit exceeded for validator"));
+    }
 
     // Get the signature
     let signature = sign_commitment(&commitment, &config).await?;
@@ -37,7 +51,7 @@ pub async fn process_commitment(
     }
 
     // Create signed commitment
-    let signed_commitment = SignedXGACommitment { message: commitment, signature };
+    let signed_commitment = SignedXgaCommitment { message: commitment, signature };
 
     // Send to relay with retries
     send_to_relay(
@@ -53,8 +67,8 @@ pub async fn process_commitment(
 
 /// Sign an XGA commitment using the validator's BLS key
 async fn sign_commitment(
-    commitment: &XGACommitment,
-    config: &StartCommitModuleConfig<XGAConfig>,
+    commitment: &XgaCommitment,
+    config: &StartCommitModuleConfig<XgaConfig>,
 ) -> eyre::Result<BlsSignature> {
     debug!(
         validator_pubkey = ?commitment.validator_pubkey,
@@ -91,7 +105,7 @@ const XGA_DST: &[u8] = b"BLS_SIG_XGA_COMMITMENT_COMMIT_BOOST";
 
 /// Verify a BLS signature on an XGA commitment
 pub fn verify_signature(
-    commitment: &XGACommitment,
+    commitment: &XgaCommitment,
     signature: &BlsSignature,
     pubkey: &BlsPublicKey,
 ) -> bool {
@@ -156,19 +170,19 @@ pub fn verify_signature(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::commitment::XGAParameters;
+    use crate::commitment::XgaParameters;
 
     #[test]
     fn test_verify_signature_with_proper_dst() {
         use blst::min_pk::*;
 
         // Create test data
-        let commitment = XGACommitment::new(
+        let commitment = XgaCommitment::new(
             [0x42u8; 32],
             BlsPublicKey::from([0x01u8; 48]),
-            "test-relay".to_string(),
+            "test-relay",
             1,
-            XGAParameters {
+            XgaParameters {
                 version: 2,
                 min_inclusion_slot: 100,
                 max_inclusion_slot: 200,
@@ -215,12 +229,12 @@ mod tests {
 
     #[test]
     fn test_verify_signature_rejects_invalid_formats() {
-        let commitment = XGACommitment::new(
+        let commitment = XgaCommitment::new(
             [0u8; 32],
             BlsPublicKey::default(),
-            "test-relay".to_string(),
+            "test-relay",
             1,
-            XGAParameters::default(),
+            XgaParameters::default(),
         );
 
         // Test with invalid signature bytes (all zeros)
