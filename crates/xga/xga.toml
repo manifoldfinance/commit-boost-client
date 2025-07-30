@@ -1,0 +1,47 @@
+# XGA Commitment Module Configuration
+
+# Module ID - unique identifier for this module instance
+id = "xga-commitment"
+
+# Docker image for the module (if running in Docker)
+docker_image = "xga-commitment:latest"
+
+# Signing ID - unique identifier for cryptographic signatures
+signing_id = "0x736d6f436d6d6f42000000000000000000000000000000000000000000000001"
+
+# Extra configuration specific to XGA module
+[extra]
+# Port for the webhook server to receive registration notifications
+webhook_port = 18550
+
+# List of XGA-enabled relay URLs
+xga_relays = [
+    "https://xga-relay1.example.com",
+    "https://xga-relay2.example.com"
+]
+
+# Delay in milliseconds before sending commitment after registration
+commitment_delay_ms = 100
+
+# Number of retry attempts for failed commitments
+retry_attempts = 3
+
+# Delay between retry attempts in milliseconds
+retry_delay_ms = 1000
+
+# Maximum age of registration in seconds to process
+max_registration_age_secs = 60
+
+# Whether to probe relay capabilities at runtime
+probe_relay_capabilities = false
+
+# EigenLayer Integration Configuration (Shadow Mode Only)
+[extra.eigenlayer]
+# Enable EigenLayer AVS integration
+enabled = true
+
+# XGARegistry contract address on Ethereum mainnet
+registry_address = "0x0000000000000000000000000000000000000000"
+
+# Ethereum RPC endpoint (read-only access for shadow mode)
+rpc_url = "https://eth-mainnet.g.alchemy.com/v2/your-api-key"

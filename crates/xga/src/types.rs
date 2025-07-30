@@ -1,122 +1,180 @@
-use std::sync::Arc;
-use std::time::Instant;
+//! Type-safe wrappers for common byte arrays used throughout the XGA module
 
-/// Type alias for relay ID
-pub type RelayId = Arc<String>;
+use sha2::{Digest, Sha256};
+use std::fmt;
 
-/// Type alias for gas amount in wei
-pub type GasAmount = u64;
+/// Type-safe wrapper for relay identifiers
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct RelayId([u8; 32]);
 
-/// Represents a gas reservation for a specific relay
-#[derive(Debug, Clone)]
-pub struct GasReservation {
-    /// Reserved gas amount for this relay
-    pub reserved_gas: u64,
-    
-    /// When this reservation was last updated
-    pub last_updated: Instant,
-    
-    /// The relay ID this reservation is for
-    pub relay_id: String,
-    
-    /// Optional min gas limit from relay
-    pub min_gas_limit: Option<u64>,
+impl RelayId {
+    /// Create a new RelayId from raw bytes
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// Create a RelayId from a URL string
+    pub fn from_url(url: &str) -> Self {
+        let mut hasher = Sha256::new();
+        hasher.update(url.as_bytes());
+        Self(hasher.finalize().into())
+    }
+
+    /// Get the raw bytes
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    /// Convert to owned byte array
+    pub const fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
 }
 
-/// Represents a bid from a relay with gas reservation applied
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct AdjustedBid {
-    pub response: cb_common::pbs::GetHeaderResponse,
-    pub original_gas_limit: GasAmount,
-    pub reserved_gas: GasAmount,
-    pub relay_id: RelayId,
+impl fmt::Display for RelayId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
 }
 
-/// Result of querying a single relay
-#[derive(Debug)]
-#[allow(dead_code)]
-pub enum RelayQueryResult {
-    Bid(AdjustedBid),
-    NoBid,
-    Error(String),
+impl From<[u8; 32]> for RelayId {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
 }
 
-/// Represents the outcome of gas reservation application
-///
-/// This struct contains the results of applying a gas reservation to a block,
-/// including the new gas limit after reservation and the amount that was reserved.
-///
-/// # Example
-///
-/// ```ignore
-/// let outcome = state.apply_reservation("flashbots", 30_000_000)?;
-/// assert_eq!(outcome.new_gas_limit, 28_000_000);
-/// assert_eq!(outcome.reserved_amount, 2_000_000);
-/// ```
-#[derive(Debug, Clone)]
-pub struct GasReservationOutcome {
-    /// The new gas limit after applying the reservation
-    pub new_gas_limit: GasAmount,
-    /// The amount of gas that was reserved
-    pub reserved_amount: GasAmount,
-    /// The ID of the relay this reservation is for
-    pub relay_id: String,
+impl AsRef<[u8]> for RelayId {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
 }
 
-/// Relay configuration update event
-///
-/// Tracks changes to relay gas reservation configurations, including
-/// the previous reservation amount (if any) and the new amount.
-///
-/// # Example
-///
-/// ```ignore
-/// let event = service.update_relay_configuration(
-///     "flashbots".to_string(),
-///     RelayGasConfig {
-///         reserved_gas_limit: 2_000_000,
-///         min_gas_limit: Some(15_000_000),
-///         update_interval: None,
-///     }
-/// );
-/// println!("Updated {} from {:?} to {}",
-///     event.relay_id, event.old_reservation, event.new_reservation);
-/// ```
-#[derive(Debug, Clone)]
-pub struct ConfigUpdateEvent {
-    /// The ID of the relay whose configuration was updated
-    pub relay_id: String,
-    /// The previous gas reservation amount, if any
-    pub old_reservation: Option<GasAmount>,
-    /// The new gas reservation amount
-    pub new_reservation: GasAmount,
-    /// When this update occurred
-    pub timestamp: std::time::Instant,
+/// Type-safe wrapper for commitment hashes
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CommitmentHash([u8; 32]);
+
+impl CommitmentHash {
+    /// Create a new CommitmentHash from raw bytes
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// Get the raw bytes
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    /// Convert to owned byte array
+    pub const fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
 }
 
-/// Information about a relay's reserve requirement
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct RelayReserveInfo {
-    /// The ID of the relay
-    pub relay_id: String,
-    /// The minimum gas capacity that must be reserved (if query succeeded)
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reserve: Option<u64>,
-    /// Time taken to query the relay in milliseconds
-    pub query_time_ms: u64,
-    /// Status of the query
-    pub status: ReserveQueryStatus,
-    /// Error message if query failed
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
+impl fmt::Display for CommitmentHash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
 }
 
-/// Status of a reserve query to a relay
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ReserveQueryStatus {
-    Success,
-    Error,
-    Timeout,
+impl From<[u8; 32]> for CommitmentHash {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl AsRef<[u8]> for CommitmentHash {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+/// Type-safe wrapper for nonces
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Nonce([u8; 32]);
+
+impl Nonce {
+    /// Generate a new random nonce
+    pub fn generate() -> Self {
+        use rand::Rng;
+        let mut nonce = [0u8; 32];
+        rand::thread_rng().fill(&mut nonce);
+        Self(nonce)
+    }
+
+    /// Create a nonce from raw bytes
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// Get the raw bytes
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+
+    /// Convert to owned byte array
+    pub const fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl fmt::Display for Nonce {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(self.0))
+    }
+}
+
+impl From<[u8; 32]> for Nonce {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl AsRef<[u8]> for Nonce {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_relay_id_from_url() {
+        let url1 = "https://relay.example.com";
+        let url2 = "https://different-relay.example.com";
+
+        let id1 = RelayId::from_url(url1);
+        let id2 = RelayId::from_url(url2);
+
+        // Same URL should produce same ID
+        assert_eq!(id1, RelayId::from_url(url1));
+
+        // Different URLs should produce different IDs
+        assert_ne!(id1, id2);
+    }
+
+    #[test]
+    fn test_nonce_generation() {
+        let nonce1 = Nonce::generate();
+        let nonce2 = Nonce::generate();
+
+        // Generated nonces should be different
+        assert_ne!(nonce1, nonce2);
+    }
+
+    #[test]
+    fn test_type_conversions() {
+        let bytes = [0x42u8; 32];
+
+        let relay_id = RelayId::from_bytes(bytes);
+        assert_eq!(relay_id.as_bytes(), &bytes);
+        assert_eq!(relay_id.into_bytes(), bytes);
+
+        let commitment_hash = CommitmentHash::from(bytes);
+        assert_eq!(commitment_hash.as_bytes(), &bytes);
+
+        let nonce = Nonce::from_bytes(bytes);
+        assert_eq!(nonce.as_bytes(), &bytes);
+    }
 }

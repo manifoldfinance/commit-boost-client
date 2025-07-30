@@ -1,126 +1,102 @@
-use eyre::Result;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use crate::eigenlayer::EigenLayerConfig;
+use crate::infrastructure::parse_and_validate_url;
+use eyre;
+use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ReservedGasConfig {
-    /// Default reserved gas limit to apply to all relays (in gas units)
-    #[serde(default = "default_reserved_gas")]
-    pub default_reserved_gas: u64,
+#[derive(Debug, Clone, Deserialize)]
+pub struct XGAConfig {
+    /// Port for the webhook server
+    pub webhook_port: u16,
 
-    /// Per-relay gas limit overrides (relay_id -> reserved_gas)
+    /// List of XGA-enabled relay URLs
+    pub xga_relays: Vec<String>,
+
+    /// Delay in milliseconds before sending commitment after registration
+    #[serde(default = "default_commitment_delay_ms")]
+    pub commitment_delay_ms: u64,
+
+    /// Number of retry attempts for failed commitments
+    #[serde(default = "default_retry_attempts")]
+    pub retry_attempts: u32,
+
+    /// Delay between retry attempts in milliseconds
+    #[serde(default = "default_retry_delay_ms")]
+    pub retry_delay_ms: u64,
+
+    /// Maximum age of registration in seconds to process
+    #[serde(default = "default_max_registration_age_secs")]
+    pub max_registration_age_secs: u64,
+
+    /// Whether to probe relay capabilities at runtime
+    #[serde(default = "default_probe_relay_capabilities")]
+    pub probe_relay_capabilities: bool,
+
+    /// EigenLayer integration configuration
     #[serde(default)]
-    pub relay_overrides: HashMap<String, u64>,
-
-    /// Interval in seconds to fetch gas config updates from relays
-    #[serde(default = "default_update_interval")]
-    pub update_interval_secs: u64,
-
-    /// Minimum block gas limit to enforce (safety check)
-    #[serde(default = "default_min_gas_limit")]
-    pub min_block_gas_limit: u64,
-
-    /// Optional endpoint path for fetching gas config from relays
-    #[serde(default = "default_config_endpoint")]
-    pub relay_config_endpoint: String,
-
-    /// Whether to fetch gas config from relays
-    #[serde(default = "default_fetch_from_relays")]
-    pub fetch_from_relays: bool,
-
-    /// Optional endpoint path for fetching reserve requirements from relays (default: /xga/v2/relay/reserve)
-    #[serde(default = "default_reserve_endpoint")]
-    pub relay_reserve_endpoint: String,
+    pub eigenlayer: EigenLayerConfig,
 }
 
-fn default_reserved_gas() -> u64 {
-    1_000_000 // 1M gas reserved by default
+fn default_commitment_delay_ms() -> u64 {
+    100
 }
 
-fn default_update_interval() -> u64 {
-    60 // Update every minute
+fn default_retry_attempts() -> u32 {
+    3
 }
 
-fn default_min_gas_limit() -> u64 {
-    10_000_000 // 10M gas minimum
+fn default_retry_delay_ms() -> u64 {
+    1000
 }
 
-fn default_config_endpoint() -> String {
-    "/relay/v1/gas_config".to_string()
+fn default_max_registration_age_secs() -> u64 {
+    60
 }
 
-fn default_fetch_from_relays() -> bool {
-    true
+fn default_probe_relay_capabilities() -> bool {
+    false
 }
 
-fn default_reserve_endpoint() -> String {
-    "/xga/v2/relay/reserve".to_string()
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub struct RelayGasConfig {
-    /// Reserved gas limit advertised by the relay
-    pub reserved_gas_limit: u64,
-
-    /// Optional update interval hint from relay
-    pub update_interval: Option<u64>,
-
-    /// Optional minimum gas limit requirement from relay
-    pub min_gas_limit: Option<u64>,
-}
-
-impl ReservedGasConfig {
-    /// Get the reserved gas for a specific relay
-    pub fn get_reserved_gas(&self, relay_id: &str) -> u64 {
-        self.relay_overrides.get(relay_id).copied().unwrap_or(self.default_reserved_gas)
+impl XGAConfig {
+    /// Check if a relay URL is XGA-enabled
+    pub fn is_xga_relay(&self, relay_url: &str) -> bool {
+        self.xga_relays.iter().any(|url| url == relay_url)
     }
 
-    /// Validate that a gas limit after reservation meets minimum requirements
-    pub fn validate_gas_limit(&self, original_gas_limit: u64, reserved: u64) -> crate::error::Result<u64> {
-        // Use the validation function from validation module
-        crate::validation::validate_gas_after_reservation(
-            original_gas_limit,
-            reserved,
-            self.min_block_gas_limit,
-        )
-    }
-
-    /// Validate the configuration on startup
-    pub fn validate(&self) -> Result<()> {
-        // Validate update interval is reasonable (at least 10 seconds, at most 1 hour)
-        if self.update_interval_secs < 10 {
-            return Err(eyre::eyre!("Update interval must be at least 10 seconds"));
-        }
-        if self.update_interval_secs > 3600 {
-            return Err(eyre::eyre!("Update interval must not exceed 1 hour (3600 seconds)"));
+    /// Validate the configuration
+    pub fn validate(&self) -> eyre::Result<()> {
+        // Validate port range
+        if self.webhook_port < 1024 {
+            return Err(eyre::eyre!("Webhook port must be >= 1024 for non-root operation"));
         }
 
-        // Validate endpoints are valid paths
-        if !self.relay_config_endpoint.starts_with('/') {
-            return Err(eyre::eyre!("Relay config endpoint must start with '/'"));
-        }
-        if !self.relay_reserve_endpoint.starts_with('/') {
-            return Err(eyre::eyre!("Relay reserve endpoint must start with '/'"));
+        // Validate delays and timeouts
+        if self.commitment_delay_ms < 1 || self.commitment_delay_ms > 60000 {
+            return Err(eyre::eyre!("Commitment delay must be between 1ms and 60 seconds"));
         }
 
-        // Validate gas limits
-        crate::validation::validate_gas_limit(self.default_reserved_gas, "default reserved gas")?;
-
-        // Validate relay overrides
-        for (relay_id, reserved_gas) in &self.relay_overrides {
-            crate::validation::validate_gas_limit(
-                *reserved_gas,
-                &format!("reserved gas for relay {}", relay_id),
-            )?;
+        if self.retry_delay_ms < 100 || self.retry_delay_ms > 60000 {
+            return Err(eyre::eyre!("Retry delay must be between 100ms and 60 seconds"));
         }
 
-        // Validate minimum block gas limit
-        if self.min_block_gas_limit < crate::validation::MIN_BLOCK_GAS_LIMIT {
+        if self.retry_attempts < 1 || self.retry_attempts > 10 {
+            return Err(eyre::eyre!("Retry attempts must be between 1 and 10"));
+        }
+
+        if self.max_registration_age_secs < 1 || self.max_registration_age_secs > 600 {
             return Err(eyre::eyre!(
-                "Minimum block gas limit {} is below required minimum {}",
-                self.min_block_gas_limit,
-                crate::validation::MIN_BLOCK_GAS_LIMIT
+                "Max registration age must be between 1 second and 10 minutes"
             ));
+        }
+
+        // Validate at least one XGA relay is configured
+        if self.xga_relays.is_empty() {
+            return Err(eyre::eyre!("At least one XGA relay must be configured"));
+        }
+
+        // Validate all relay URLs using infrastructure module
+        for relay_url in &self.xga_relays {
+            parse_and_validate_url(relay_url)
+                .map_err(|e| eyre::eyre!("Invalid XGA relay URL: {}", e))?;
         }
 
         Ok(())

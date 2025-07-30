@@ -1,49 +1,84 @@
 [package]
-name = "cb-reserved-gas"
-version = "0.1.0"
+name = "xga-commitment"
+version = "0.1.2"
 edition = "2021"
-publish = false
 
-[dependencies]
-# Core dependencies from workspace
-tokio = { workspace = true }
-axum = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-eyre = { workspace = true }
-tracing = { workspace = true }
-async-trait = { workspace = true }
-alloy = { workspace = true }
-futures = { workspace = true }
-color-eyre = { workspace = true }
-
-# Commit-boost dependencies
-cb-common = { path = "../common" }
-cb-metrics = { path = "../metrics" }
-cb-pbs = { path = "../pbs" }
-
-# HTTP client for relay communication
-reqwest = { workspace = true }
-
-# State management
-dashmap = "6.0"
-parking_lot = { workspace = true }
-
-# Metrics
-prometheus = { workspace = true }
-lazy_static = { workspace = true }
-
-# Error handling
-thiserror = { workspace = true }
-
-# URL parsing for tests
-url = { workspace = true }
-
-[dev-dependencies]
-# Testing frameworks
-googletest = "0.11"
-proptest = "1.4"
+[lib]
+name = "xga_commitment"
+path = "src/lib.rs"
 
 [[bin]]
-name = "reserved-gas"
+name = "xga-commitment"
 path = "src/main.rs"
+
+[[bin]]
+name = "xga-cli"
+path = "src/bin/xga_cli.rs"
+
+[dependencies]
+# Commit Boost integration
+commit-boost = { git = "https://github.com/Commit-Boost/commit-boost-client" }
+
+# Alloy for Ethereum types and blockchain interaction
+alloy = { version = "0.12.5", features = ["full", "node-bindings", "providers", "signers", "network"] }
+alloy-rpc-types = { version = "0.12.5", features = ["beacon"] }
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Web framework for webhook
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.6", features = ["trace", "cors", "limit"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# URL parsing and validation
+url = "2.5"
+
+# SSZ and hashing
+tree_hash = "0.6"
+tree_hash_derive = "0.6"
+ethereum_ssz = "0.5"
+ethereum_ssz_derive = "0.5"
+
+# Crypto
+blst = "0.3"
+hex = "0.4"
+sha2 = "0.10"
+rand = "0.8"
+
+# HTTP client for relay communication
+reqwest = { version = "0.11", features = ["json"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+eyre = "0.6"
+thiserror = "1.0"
+
+# Metrics
+prometheus = "0.13"
+lazy_static = "1.4"
+once_cell = "1.19"
+
+# Time
+chrono = "0.4"
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+
+[dev-dependencies]
+mockito = "1.2"
+# Property-based testing
+proptest = "1.4"
+# Fuzzing utilities
+arbitrary = { version = "1.3", features = ["derive"] }
+# Mutation testing
+cargo-mutants = "24.0"
+
+[build-dependencies]
