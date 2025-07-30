@@ -173,9 +173,22 @@ impl DirkManager {
                     .proxy_accounts
                     .values()
                     .filter_map(|proxy| {
-                        if proxy.module == *module &&
-                            proxy.consensus.public_key() == account.public_key()
+                        let module_matches = proxy.module == *module;
+                        let consensus_matches = proxy.consensus.public_key() == account.public_key();
+                        
+                        // Debug assertion to ensure our logic is correct
+                        #[cfg(debug_assertions)]
                         {
+                            if module_matches && !consensus_matches {
+                                debug!("Found proxy with matching module but wrong consensus key");
+                            }
+                            if !module_matches && consensus_matches {
+                                debug!("Found proxy with matching consensus but wrong module");
+                            }
+                        }
+                        
+                        // Only return if BOTH conditions are met
+                        if module_matches && consensus_matches {
                             Some(proxy.inner.public_key())
                         } else {
                             None
@@ -241,10 +254,29 @@ impl DirkManager {
                 SignerModuleError::DirkCommunicationError(format!("Failed to sign object: {e}"))
             })?;
 
-        if response.get_ref().state() != ResponseState::Succeeded {
-            return Err(SignerModuleError::DirkCommunicationError(
-                "Failed to sign object, server responded error".to_string(),
-            ));
+        // Get state once to avoid multiple calls
+        let response_state = response.get_ref().state();
+        
+        // Explicitly check for the success state
+        match response_state {
+            ResponseState::Succeeded => {
+                // Continue with signature parsing
+            },
+            ResponseState::Denied => {
+                return Err(SignerModuleError::DirkCommunicationError(
+                    "Signing request was denied".to_string()
+                ));
+            },
+            ResponseState::Failed => {
+                return Err(SignerModuleError::DirkCommunicationError(
+                    "Signing request failed".to_string()
+                ));
+            },
+            ResponseState::Unknown => {
+                return Err(SignerModuleError::DirkCommunicationError(
+                    "Unknown response state".to_string()
+                ));
+            },
         }
 
         BlsSignature::try_from(response.into_inner().signature.as_slice()).map_err(|_| {
@@ -286,9 +318,16 @@ impl DirkManager {
                 }
             };
 
-            if response.get_ref().state() != ResponseState::Succeeded {
-                warn!("Failed to sign object with participant {participant_id}");
-                continue;
+            // Check response state explicitly
+            let response_state = response.get_ref().state();
+            match response_state {
+                ResponseState::Succeeded => {
+                    // Continue processing this response
+                },
+                _ => {
+                    warn!("Failed to sign object with participant {participant_id}, state: {:?}", response_state);
+                    continue;
+                }
             }
 
             let signature = match BlsSignature::try_from(response.into_inner().signature.as_slice())
@@ -302,14 +341,25 @@ impl DirkManager {
 
             partials.push((signature, participant_id));
 
-            if partials.len() >= account.threshold as usize {
+            // Store threshold as usize to avoid repeated casting
+            let required_threshold = account.threshold as usize;
+            let current_count = partials.len();
+            
+            // Explicit check with no ambiguity
+            if current_count >= required_threshold {
+                debug!("Collected {} signatures, threshold {} met", current_count, required_threshold);
                 break;
             }
         }
 
-        if partials.len() < account.threshold as usize {
+        // Final validation after loop with explicit comparison
+        let required_threshold = account.threshold as usize;
+        let final_count = partials.len();
+        
+        if final_count < required_threshold {
             return Err(SignerModuleError::DirkCommunicationError(
-                "Failed to get enough partial signatures".to_string(),
+                format!("Failed to get enough partial signatures: got {}, need {}", 
+                    final_count, required_threshold)
             ));
         }
 
@@ -705,9 +755,29 @@ fn random_password() -> String {
 /// Returns whether the name of an account has a proxy name format.
 ///
 /// i.e., `{wallet}/{consensus_proxy}/{module}/{uuid}`
-fn name_matches_proxy(name: &str) -> bool {
-    name.split("/").count() > 3 &&
-        name.rsplit_once("/").is_some_and(|(_, name)| uuid::Uuid::parse_str(name).is_ok())
+pub(crate) fn name_matches_proxy(name: &str) -> bool {
+    let parts: Vec<&str> = name.split('/').collect();
+    
+    // Early return for wrong number of parts
+    if parts.len() != 4 {
+        return false;
+    }
+    
+    // Check each requirement separately
+    if parts[0].is_empty() {
+        return false; // wallet name cannot be empty
+    }
+    
+    if parts[1] != "consensus_proxy" {
+        return false; // must be exact string
+    }
+    
+    if parts[2].is_empty() {
+        return false; // module name cannot be empty
+    }
+    
+    // Final check: valid UUID
+    uuid::Uuid::parse_str(parts[3]).is_ok()
 }
 
 mod test {
