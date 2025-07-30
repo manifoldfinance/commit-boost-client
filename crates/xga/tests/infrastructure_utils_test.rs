@@ -44,22 +44,22 @@ fn test_is_local_address_logic() {
     assert!(is_private);
 
     let ip = "172.16.0.1";
-    let is_private = ip.starts_with("172.16.")
-        || ip.starts_with("172.17.")
-        || ip.starts_with("172.18.")
-        || ip.starts_with("172.19.")
-        || ip.starts_with("172.20.")
-        || ip.starts_with("172.21.")
-        || ip.starts_with("172.22.")
-        || ip.starts_with("172.23.")
-        || ip.starts_with("172.24.")
-        || ip.starts_with("172.25.")
-        || ip.starts_with("172.26.")
-        || ip.starts_with("172.27.")
-        || ip.starts_with("172.28.")
-        || ip.starts_with("172.29.")
-        || ip.starts_with("172.30.")
-        || ip.starts_with("172.31.");
+    let is_private = ip.starts_with("172.16.") ||
+        ip.starts_with("172.17.") ||
+        ip.starts_with("172.18.") ||
+        ip.starts_with("172.19.") ||
+        ip.starts_with("172.20.") ||
+        ip.starts_with("172.21.") ||
+        ip.starts_with("172.22.") ||
+        ip.starts_with("172.23.") ||
+        ip.starts_with("172.24.") ||
+        ip.starts_with("172.25.") ||
+        ip.starts_with("172.26.") ||
+        ip.starts_with("172.27.") ||
+        ip.starts_with("172.28.") ||
+        ip.starts_with("172.29.") ||
+        ip.starts_with("172.30.") ||
+        ip.starts_with("172.31.");
     assert!(is_private);
 
     // Test compound conditions with || vs &&

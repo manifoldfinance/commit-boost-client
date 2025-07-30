@@ -1,7 +1,9 @@
 use blst::min_pk::SecretKey;
 use commit_boost::prelude::*;
-use xga_commitment::commitment::{XGACommitment, XGAParameters};
-use xga_commitment::signer::verify_signature;
+use xga_commitment::{
+    commitment::{XGACommitment, XGAParameters},
+    signer::verify_signature,
+};
 
 #[test]
 fn test_signature_verification_flow() {

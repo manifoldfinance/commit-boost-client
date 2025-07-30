@@ -115,8 +115,8 @@ fn test_webhook_validation_edge_cases() {
     let future_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("Failed to get current system time")
-        .as_secs()
-        + 3600; // 1 hour in the future
+        .as_secs() +
+        3600; // 1 hour in the future
 
     let future_notification = create_test_notification(future_time);
     // Future timestamps should be considered invalid

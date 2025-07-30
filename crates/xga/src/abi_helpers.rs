@@ -1,5 +1,7 @@
-use alloy::primitives::{Address, Bytes, FixedBytes, B256, U256};
-use alloy::sol_types::SolValue;
+use alloy::{
+    primitives::{Address, Bytes, FixedBytes, B256, U256},
+    sol_types::SolValue,
+};
 use eyre::Result;
 
 // Function selectors for XGARegistry contract

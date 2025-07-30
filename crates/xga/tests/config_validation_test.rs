@@ -1,5 +1,4 @@
-use xga_commitment::config::XGAConfig;
-use xga_commitment::eigenlayer::EigenLayerConfig;
+use xga_commitment::{config::XGAConfig, eigenlayer::EigenLayerConfig};
 
 #[test]
 fn test_webhook_port_minimum_boundary() {

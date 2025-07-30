@@ -2,8 +2,10 @@ use alloy_rpc_types::beacon::relay::ValidatorRegistration;
 use commit_boost::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::infrastructure::get_current_timestamp;
-use crate::types::{CommitmentHash, Nonce, RelayId};
+use crate::{
+    infrastructure::get_current_timestamp,
+    types::{CommitmentHash, Nonce, RelayId},
+};
 
 /// XGA module signing domain - "XGA_COMMITMENT" as bytes
 pub const XGA_SIGNING_DOMAIN: [u8; 32] = [
@@ -13,8 +15,9 @@ pub const XGA_SIGNING_DOMAIN: [u8; 32] = [
 
 /// Custom serde for relay_id
 mod relay_id_serde {
-    use super::RelayId;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::RelayId;
 
     pub fn serialize<S>(relay_id: &RelayId, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -43,8 +46,9 @@ mod relay_id_serde {
 
 /// Custom serde for commitment_hash
 mod commitment_hash_serde {
-    use super::CommitmentHash;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::CommitmentHash;
 
     pub fn serialize<S>(hash: &CommitmentHash, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -70,8 +74,9 @@ mod commitment_hash_serde {
 
 /// Custom serde for nonce
 mod nonce_serde {
-    use super::Nonce;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::Nonce;
 
     pub fn serialize<S>(nonce: &Nonce, serializer: S) -> Result<S::Ok, S::Error>
     where

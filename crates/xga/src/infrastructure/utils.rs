@@ -1,5 +1,6 @@
-use super::error::Error;
 use eyre::{Result, WrapErr};
+
+use super::error::Error;
 
 /// Request body size limit (1MB)
 pub const MAX_REQUEST_SIZE: usize = 1024 * 1024;

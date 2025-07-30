@@ -1,6 +1,7 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use alloy_rpc_types::beacon::relay::{ValidatorRegistration, ValidatorRegistrationMessage};
 use commit_boost::prelude::*;
-use std::time::{SystemTime, UNIX_EPOCH};
 use xga_commitment::{
     commitment::{RegistrationNotification, XGACommitment},
     config::XGAConfig,

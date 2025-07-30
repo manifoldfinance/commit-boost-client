@@ -1,5 +1,6 @@
-use commit_boost::prelude::*;
 use std::sync::Arc;
+
+use commit_boost::prelude::*;
 use tracing::{debug, error, info, warn};
 
 use crate::{
@@ -97,7 +98,8 @@ async fn sign_commitment(
 }
 
 /// Domain separation tag for XGA commitments
-/// This ensures signatures for XGA commitments cannot be reused for other purposes
+/// This ensures signatures for XGA commitments cannot be reused for other
+/// purposes
 const XGA_DST: &[u8] = b"BLS_SIG_XGA_COMMITMENT_COMMIT_BOOST";
 
 /// Verify a BLS signature on an XGA commitment

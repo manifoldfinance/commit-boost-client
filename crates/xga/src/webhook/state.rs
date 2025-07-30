@@ -1,7 +1,10 @@
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    time::Instant,
+};
+
 use commit_boost::prelude::*;
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::{
@@ -44,8 +47,8 @@ impl AppState {
         Self {
             config,
             processing_sender,
-            nonce_tracker: Arc::new(Mutex::new(HashMap::with_capacity(1000))), // Pre-allocate for typical validator count
-            dedup_tracker: Arc::new(Mutex::new(HashSet::with_capacity(1000))), // Pre-allocate for typical validator count
+            nonce_tracker: Arc::new(Mutex::new(HashMap::with_capacity(1000))), /* Pre-allocate for typical validator count */
+            dedup_tracker: Arc::new(Mutex::new(HashSet::with_capacity(1000))), /* Pre-allocate for typical validator count */
             circuit_breaker,
             http_client_factory,
             rate_limiter,

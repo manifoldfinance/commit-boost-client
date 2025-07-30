@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use commit_boost::prelude::*;
 use mockito::ServerGuard;
-use std::time::Duration;
-use xga_commitment::commitment::{SignedXGACommitment, XGACommitment, XGAParameters};
-use xga_commitment::infrastructure::{CircuitBreaker, HttpClientFactory};
-use xga_commitment::relay::{check_xga_support, send_to_relay};
+use xga_commitment::{
+    commitment::{SignedXGACommitment, XGACommitment, XGAParameters},
+    infrastructure::{CircuitBreaker, HttpClientFactory},
+    relay::{check_xga_support, send_to_relay},
+};
 
 async fn setup_mock_server() -> (ServerGuard, String) {
     let server = mockito::Server::new_async().await;

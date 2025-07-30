@@ -1,5 +1,6 @@
-use alloy::primitives::{Address, B256, U256};
 use std::time::{Duration, Instant};
+
+use alloy::primitives::{Address, B256, U256};
 use xga_commitment::eigenlayer::ShadowModeStatus;
 
 /// Test monitoring configuration logic

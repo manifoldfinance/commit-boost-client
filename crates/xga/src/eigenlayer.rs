@@ -1,23 +1,24 @@
+use std::{sync::Arc, time::Duration};
+
 #[allow(unused_imports)]
 use alloy::network::Ethereum;
-use alloy::primitives::{Address, Bytes, B256, U256};
 #[allow(unused_imports)]
 use alloy::providers::fillers::{
     BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
 };
 #[allow(unused_imports)]
 use alloy::providers::{Identity, RootProvider};
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::{
+    primitives::{Address, Bytes, B256, U256},
+    providers::{Provider, ProviderBuilder},
+};
 use alloy_rpc_types::TransactionRequest;
 use commit_boost::prelude::*;
 use eyre::{Result, WrapErr};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::time::Duration;
 use tracing::{debug, error, info, warn};
 
-use crate::abi_helpers::*;
-use crate::commitment::XGACommitment;
+use crate::{abi_helpers::*, commitment::XGACommitment};
 
 // XGARegistry contract interface - removed sol! macro usage
 
@@ -211,8 +212,8 @@ where
     }
 
     /// Run periodic shadow mode monitoring
-    /// This method should be called periodically (e.g., every block or every few minutes)
-    /// to track operator performance and detect issues
+    /// This method should be called periodically (e.g., every block or every
+    /// few minutes) to track operator performance and detect issues
     pub async fn run_periodic_monitoring(&mut self) -> Result<()> {
         if !self.config.enabled {
             return Ok(());
@@ -252,9 +253,9 @@ where
                             }
 
                             // Check for stalled rewards (no rewards for 1000+ blocks while active)
-                            if status.is_registered
-                                && status.blocks_active > U256::from(1000u64)
-                                && status.pending_rewards == U256::ZERO
+                            if status.is_registered &&
+                                status.blocks_active > U256::from(1000u64) &&
+                                status.pending_rewards == U256::ZERO
                             {
                                 warn!(
                                     "WARNING: Operator {} has been active for {} blocks with no rewards",
@@ -315,7 +316,8 @@ where
         // No on-chain transaction is made
         self.current_commitment_hash = Some(commitment_hash.0.into());
 
-        // Monitor the shadow mode status after registration if operator address is configured
+        // Monitor the shadow mode status after registration if operator address is
+        // configured
         if let Some(operator_addr_str) = &self.config.operator_address {
             if let Ok(operator_address) = operator_addr_str.parse::<Address>() {
                 if let Err(e) = self.monitor_shadow_mode(operator_address).await {
@@ -618,9 +620,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::{future::Future, pin::Pin};
+
     use super::*;
-    use std::future::Future;
-    use std::pin::Pin;
 
     // Create a test implementation to verify method signatures
     struct TestEigenLayer;
@@ -736,15 +738,20 @@ mod tests {
         // This test verifies that EigenLayerIntegration implements all trait methods
         fn assert_impl_eigenlayer_queries<T: EigenLayerQueries>() {}
 
-        // This line will fail to compile if EigenLayerIntegration doesn't implement the trait
+        // This line will fail to compile if EigenLayerIntegration doesn't implement the
+        // trait
         assert_impl_eigenlayer_queries::<EigenLayerIntegration<DefaultProvider>>();
 
         // The trait methods are used as follows:
-        // 1. get_pending_rewards - Used internally by get_shadow_mode_status and by CLI
-        // 2. get_operator_status - Used internally by get_shadow_mode_status and by CLI
-        // 3. get_shadow_mode_status - Used by CLI for comprehensive status queries
+        // 1. get_pending_rewards - Used internally by get_shadow_mode_status
+        //    and by CLI
+        // 2. get_operator_status - Used internally by get_shadow_mode_status
+        //    and by CLI
+        // 3. get_shadow_mode_status - Used by CLI for comprehensive status
+        //    queries
         //
-        // The compiler warning about get_shadow_mode_status being unused is a false positive
-        // because it's used by the xga_cli binary, which the library doesn't see.
+        // The compiler warning about get_shadow_mode_status being unused is a
+        // false positive because it's used by the xga_cli binary, which
+        // the library doesn't see.
     }
 }

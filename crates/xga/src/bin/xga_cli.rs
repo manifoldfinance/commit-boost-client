@@ -1,7 +1,8 @@
+use std::sync::Arc;
+
 use clap::{Parser, Subcommand};
 use commit_boost::prelude::*;
 use eyre::Result;
-use std::sync::Arc;
 use tracing::{error, info};
 use xga_commitment::{
     config::XGAConfig,

@@ -18,7 +18,8 @@ fn test_commitment_hash_consistency() {
         params.clone(),
     );
 
-    // Create a second commitment with same data but wait to ensure different timestamp
+    // Create a second commitment with same data but wait to ensure different
+    // timestamp
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     let commitment2 =

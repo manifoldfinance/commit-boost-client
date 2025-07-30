@@ -1,11 +1,13 @@
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
 
-use crate::infrastructure::get_current_timestamp;
-
 use super::state::AppState;
+use crate::infrastructure::get_current_timestamp;
 
 /// Nonce expiration time (5 minutes)
 const NONCE_EXPIRATION: Duration = Duration::from_secs(300);

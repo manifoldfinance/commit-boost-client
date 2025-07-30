@@ -2,13 +2,12 @@ use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use commit_boost::prelude::*;
 use tracing::{error, info, warn};
 
+use super::{state::AppState, validation::validate_notification};
 use crate::{
     commitment::RegistrationNotification,
     metrics::{COMMITMENTS_QUEUED, REGISTRATIONS_RECEIVED, VALIDATOR_METRICS},
     relay::check_xga_support,
 };
-
-use super::{state::AppState, validation::validate_notification};
 
 /// Handle incoming registration notifications
 pub async fn handle_registration(
@@ -61,8 +60,8 @@ pub async fn handle_registration(
     }
 
     // Double-check by probing the relay (optional, can be disabled in config)
-    if state.config.extra.probe_relay_capabilities
-        && !check_xga_support(&notification.relay_url, &state.http_client_factory).await
+    if state.config.extra.probe_relay_capabilities &&
+        !check_xga_support(&notification.relay_url, &state.http_client_factory).await
     {
         warn!(
             relay_url = %notification.relay_url,

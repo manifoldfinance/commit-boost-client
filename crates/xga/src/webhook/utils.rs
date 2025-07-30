@@ -1,5 +1,6 @@
 /// Extract relay ID from URL
-/// This extracts the hostname (and port if present) from a URL to use as a relay identifier
+/// This extracts the hostname (and port if present) from a URL to use as a
+/// relay identifier
 pub fn extract_relay_id(url: &str) -> String {
     // Simple extraction - take the hostname
     // In production, this should be more sophisticated

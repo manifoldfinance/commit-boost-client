@@ -1,7 +1,8 @@
 //! Type-safe wrappers for common byte arrays used throughout the XGA module
 
-use sha2::{Digest, Sha256};
 use std::fmt;
+
+use sha2::{Digest, Sha256};
 
 /// Type-safe wrapper for relay identifiers
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

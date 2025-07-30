@@ -1,4 +1,5 @@
 use std::fmt;
+
 use xga_commitment::types::{CommitmentHash, Nonce, RelayId};
 
 /// Test RelayId Display implementation

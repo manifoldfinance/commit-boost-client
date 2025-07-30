@@ -1,7 +1,7 @@
-use crate::eigenlayer::EigenLayerConfig;
-use crate::infrastructure::parse_and_validate_url;
 use eyre;
 use serde::Deserialize;
+
+use crate::{eigenlayer::EigenLayerConfig, infrastructure::parse_and_validate_url};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct XGAConfig {
@@ -83,9 +83,7 @@ impl XGAConfig {
         }
 
         if self.max_registration_age_secs < 1 || self.max_registration_age_secs > 600 {
-            return Err(eyre::eyre!(
-                "Max registration age must be between 1 second and 10 minutes"
-            ));
+            return Err(eyre::eyre!("Max registration age must be between 1 second and 10 minutes"));
         }
 
         // Validate at least one XGA relay is configured

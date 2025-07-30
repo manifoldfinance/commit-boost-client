@@ -1,25 +1,23 @@
+use std::{sync::Arc, time::Duration};
+
 use axum::{routing::post, Router};
 use commit_boost::prelude::*;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
 use tower::ServiceBuilder;
-use tower_http::limit::RequestBodyLimitLayer;
-use tower_http::trace::TraceLayer;
+use tower_http::{limit::RequestBodyLimitLayer, trace::TraceLayer};
 use tracing::{error, info};
-
-use crate::{
-    commitment::RegistrationNotification,
-    config::XGAConfig,
-    eigenlayer::EigenLayerIntegration,
-    infrastructure::{CircuitBreaker, HttpClientFactory, RateLimiter, MAX_REQUEST_SIZE},
-};
 
 use super::{
     handlers::{handle_registration, health_check},
     monitoring::{eigenlayer_monitoring_loop, nonce_cleanup_loop},
     processing::process_queue_loop,
     state::AppState,
+};
+use crate::{
+    commitment::RegistrationNotification,
+    config::XGAConfig,
+    eigenlayer::EigenLayerIntegration,
+    infrastructure::{CircuitBreaker, HttpClientFactory, RateLimiter, MAX_REQUEST_SIZE},
 };
 
 /// Start the webhook server

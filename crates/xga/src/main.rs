@@ -1,7 +1,6 @@
 use commit_boost::prelude::*;
 use eyre::Result;
 use tracing::info;
-
 use xga_commitment::{
     config::XGAConfig, metrics::XGA_METRICS_REGISTRY, webhook::start_webhook_server,
 };

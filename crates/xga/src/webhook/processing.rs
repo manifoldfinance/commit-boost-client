@@ -1,10 +1,14 @@
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
 use commit_boost::prelude::*;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex};
 use tracing::{error, info, warn};
 
+use super::{state::NonceEntry, utils::extract_relay_id};
 use crate::{
     commitment::{RegistrationNotification, XGACommitment},
     config::XGAConfig,
@@ -13,8 +17,6 @@ use crate::{
     metrics::VALIDATOR_METRICS,
     signer::process_commitment,
 };
-
-use super::{state::NonceEntry, utils::extract_relay_id};
 
 /// Background task to process queued registrations
 pub async fn process_queue_loop(
@@ -152,10 +154,10 @@ async fn track_nonce(
         return false;
     }
 
-    tracker.insert(
-        nonce_bytes,
-        NonceEntry { created_at: Instant::now(), validator_pubkey: commitment.validator_pubkey },
-    );
+    tracker.insert(nonce_bytes, NonceEntry {
+        created_at: Instant::now(),
+        validator_pubkey: commitment.validator_pubkey,
+    });
 
     true
 }
@@ -204,9 +206,11 @@ async fn handle_eigenlayer_registration(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Arc;
+
     use tokio::sync::Mutex;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_nonce_replay_protection() {

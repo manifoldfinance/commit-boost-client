@@ -1,11 +1,14 @@
 //! Test utilities for fuzzing and property-based testing
 
-use crate::commitment::{RegistrationNotification, XGACommitment, XGAParameters};
-use crate::config::XGAConfig;
-use crate::infrastructure::get_current_timestamp;
 use alloy_rpc_types::beacon::relay::{ValidatorRegistration, ValidatorRegistrationMessage};
 use commit_boost::prelude::BlsPublicKey;
 use proptest::prelude::*;
+
+use crate::{
+    commitment::{RegistrationNotification, XGACommitment, XGAParameters},
+    config::XGAConfig,
+    infrastructure::get_current_timestamp,
+};
 
 /// Generate arbitrary bytes of a specific length
 pub fn arb_bytes<const N: usize>() -> impl Strategy<Value = [u8; N]> {

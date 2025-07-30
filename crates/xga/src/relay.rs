@@ -1,6 +1,7 @@
+use std::time::Duration;
+
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
-use std::time::Duration;
 use tracing::{debug, error, info, warn};
 
 use crate::{
@@ -294,10 +295,13 @@ pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClient
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::commitment::{XGACommitment, XGAParameters};
-    use crate::infrastructure::HttpClientFactory;
     use commit_boost::prelude::*;
+
+    use super::*;
+    use crate::{
+        commitment::{XGACommitment, XGAParameters},
+        infrastructure::HttpClientFactory,
+    };
 
     #[tokio::test]
     async fn test_send_commitment_error_handling() {

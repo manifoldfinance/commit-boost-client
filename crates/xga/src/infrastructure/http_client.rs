@@ -1,6 +1,7 @@
+use std::time::Duration;
+
 use eyre::{Result, WrapErr};
 use reqwest::{Client, ClientBuilder};
-use std::time::Duration;
 
 /// HTTP client factory with connection pooling and timeouts
 pub struct HttpClientFactory {

@@ -72,8 +72,9 @@ pub fn validate_relay_url(relay_url: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use alloy_rpc_types::beacon::relay::{ValidatorRegistration, ValidatorRegistrationMessage};
+
+    use super::*;
 
     fn create_valid_registration() -> ValidatorRegistration {
         ValidatorRegistration {
