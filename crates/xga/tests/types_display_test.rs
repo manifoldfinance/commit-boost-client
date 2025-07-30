@@ -1,6 +1,6 @@
 use std::fmt;
 
-use xga_commitment::types::{CommitmentHash, Nonce, RelayId};
+use xga_commitment::types::{CommitmentHash, RelayId};
 
 /// Test RelayId Display implementation
 #[test]
@@ -40,26 +40,6 @@ fn test_commitment_hash_display() {
     let hash = CommitmentHash::from_bytes([255u8; 32]);
     let display = format!("{}", hash);
     assert_eq!(display, "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
-}
-
-/// Test Nonce Display implementation
-#[test]
-fn test_nonce_display() {
-    let nonce = Nonce::from_bytes([42u8; 32]);
-    let display = format!("{}", nonce);
-
-    // Should be hex encoded without 0x prefix
-    assert_eq!(display.len(), 64); // 32 bytes = 64 hex chars
-    assert!(display.chars().all(|c| c.is_ascii_hexdigit()));
-
-    // Test specific bytes
-    let nonce = Nonce::from_bytes([0u8; 32]);
-    let display = format!("{}", nonce);
-    assert_eq!(display, "0000000000000000000000000000000000000000000000000000000000000000");
-
-    let nonce = Nonce::from_bytes([1u8; 32]);
-    let display = format!("{}", nonce);
-    assert_eq!(display, "0101010101010101010101010101010101010101010101010101010101010101");
 }
 
 /// Test AsRef implementations
@@ -104,33 +84,6 @@ fn test_commitment_hash_as_ref() {
     // Test returning vec![1] instead
     let test_bytes = vec![1u8];
     assert_eq!(test_bytes.as_slice(), &[1u8]);
-}
-
-#[test]
-fn test_nonce_as_ref() {
-    let nonce = Nonce::from_bytes([42u8; 32]);
-    let bytes: &[u8] = nonce.as_ref();
-    assert_eq!(bytes.len(), 32);
-    assert_eq!(bytes, &[42u8; 32]);
-
-    // Test with different values - empty slice
-    let nonce = Nonce::from_bytes([0u8; 32]);
-    let bytes: &[u8] = nonce.as_ref();
-    assert_eq!(bytes, &[0u8; 32]);
-
-    // Test empty vec
-    let empty_vec: Vec<u8> = Vec::new();
-    let empty_slice: &[u8] = &[];
-    assert_eq!(empty_vec.as_slice(), empty_slice);
-
-    // Test with different values - vec of 1
-    let nonce = Nonce::from_bytes([1u8; 32]);
-    let bytes: &[u8] = nonce.as_ref();
-    assert_eq!(bytes, &[1u8; 32]);
-
-    // Test vec![1]
-    let test_vec = vec![1u8];
-    assert_eq!(test_vec.as_slice(), &[1u8]);
 }
 
 /// Test into_bytes for CommitmentHash
@@ -216,9 +169,6 @@ fn test_display_no_panic() {
     let hash = CommitmentHash::from_bytes([0u8; 32]);
     let _ = format!("{}", hash);
 
-    let nonce = Nonce::from_bytes([0u8; 32]);
-    let _ = format!("{}", nonce);
-
     // Test with various byte patterns
     let relay_id = RelayId::from_bytes([0xAB; 32]);
     let _ = format!("{}", relay_id);
@@ -226,8 +176,6 @@ fn test_display_no_panic() {
     let hash = CommitmentHash::from_bytes([0xCD; 32]);
     let _ = format!("{}", hash);
 
-    let nonce = Nonce::from_bytes([0xEF; 32]);
-    let _ = format!("{}", nonce);
 }
 
 /// Test equality comparisons
@@ -249,11 +197,4 @@ fn test_type_equality() {
     assert_eq!(hash1, hash2);
     assert_ne!(hash1, hash3);
 
-    // Test Nonce equality
-    let nonce1 = Nonce::from_bytes([42u8; 32]);
-    let nonce2 = Nonce::from_bytes([42u8; 32]);
-    let nonce3 = Nonce::from_bytes([43u8; 32]);
-
-    assert_eq!(nonce1, nonce2);
-    assert_ne!(nonce1, nonce3);
 }

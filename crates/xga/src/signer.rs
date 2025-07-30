@@ -7,10 +7,6 @@ use crate::{
     commitment::{SignedXGACommitment, XGACommitment},
     config::XGAConfig,
     infrastructure::{CircuitBreaker, HttpClientFactory},
-    metrics::{
-        SIGNATURES_RECEIVED, SIGNATURES_REQUESTED, SIGNATURE_ERRORS, SIGNATURE_VERIFICATIONS,
-        VALIDATOR_METRICS,
-    },
     relay::send_to_relay,
 };
 
@@ -19,7 +15,7 @@ pub async fn process_commitment(
     commitment: XGACommitment,
     relay_url: String,
     config: Arc<StartCommitModuleConfig<XGAConfig>>,
-    circuit_breaker: &CircuitBreaker,
+    _circuit_breaker: &CircuitBreaker,
     http_client_factory: &HttpClientFactory,
 ) -> eyre::Result<()> {
     info!(
@@ -47,9 +43,7 @@ pub async fn process_commitment(
     send_to_relay(
         signed_commitment,
         relay_url,
-        config.extra.retry_attempts,
-        config.extra.retry_delay_ms,
-        circuit_breaker,
+        &config.extra.retry_config,
         http_client_factory,
     )
     .await?;
@@ -62,11 +56,6 @@ async fn sign_commitment(
     commitment: &XGACommitment,
     config: &StartCommitModuleConfig<XGAConfig>,
 ) -> eyre::Result<BlsSignature> {
-    SIGNATURES_REQUESTED.inc();
-
-    // Track validator signature request
-    VALIDATOR_METRICS.with_label_values(&["validator", "signature_requested"]).inc();
-
     debug!(
         validator_pubkey = ?commitment.validator_pubkey,
         "Requesting signature for XGA commitment"
@@ -78,7 +67,6 @@ async fn sign_commitment(
     // Request signature from Commit Boost signer
     match config.signer_client.clone().request_consensus_signature(request).await {
         Ok(signature) => {
-            SIGNATURES_RECEIVED.inc();
             info!(
                 validator_pubkey = ?commitment.validator_pubkey,
                 "Successfully signed XGA commitment"
@@ -86,7 +74,6 @@ async fn sign_commitment(
             Ok(signature)
         }
         Err(e) => {
-            SIGNATURE_ERRORS.inc();
             error!(
                 validator_pubkey = ?commitment.validator_pubkey,
                 error = %e,
@@ -109,8 +96,6 @@ pub fn verify_signature(
     pubkey: &BlsPublicKey,
 ) -> bool {
     use blst::{min_pk::*, BLST_ERROR};
-
-    SIGNATURE_VERIFICATIONS.inc();
 
     // Get the message to verify (TreeHash root of the commitment)
     let message = commitment.get_tree_hash_root();
@@ -219,9 +204,9 @@ mod tests {
             "Signature with wrong pubkey should not verify"
         );
 
-        // Test with modified commitment (different nonce)
+        // Test with modified commitment (different timestamp)
         let mut modified_commitment = commitment.clone();
-        modified_commitment.nonce = crate::types::Nonce::from_bytes([0xFFu8; 32]);
+        modified_commitment.timestamp += 1000;
         assert!(
             !verify_signature(&modified_commitment, &signature, &pubkey),
             "Signature for different commitment should not verify"

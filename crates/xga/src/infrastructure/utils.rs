@@ -77,16 +77,6 @@ pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     result == 0
 }
 
-/// Rate limiting middleware for Axum (placeholder for now)
-#[allow(dead_code)]
-pub async fn rate_limit_middleware(
-    req: axum::http::Request<axum::body::Body>,
-    next: axum::middleware::Next,
-) -> Result<axum::response::Response, axum::http::StatusCode> {
-    // This is a placeholder - in production, you'd inject the rate limiter
-    // For now, we'll just pass through
-    Ok(next.run(req).await)
-}
 
 #[cfg(test)]
 mod tests {

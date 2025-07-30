@@ -6,11 +6,6 @@ pub enum Error {
     #[error("Invalid URL: {0}")]
     InvalidUrl(String),
 
-    #[error("Circuit breaker open for relay: {0}")]
-    CircuitBreakerOpen(String),
-
-    #[error("Rate limit exceeded")]
-    RateLimitExceeded,
 
     #[error("Request timeout")]
     Timeout,
@@ -26,9 +21,6 @@ pub enum Error {
 
     #[error("Validation failed: {0}")]
     Validation(String),
-
-    #[error("Nonce replay detected")]
-    NonceReplay,
 
     #[error("Signature verification failed")]
     SignatureVerification,

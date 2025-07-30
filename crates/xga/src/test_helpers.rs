@@ -1,9 +1,8 @@
-use alloy::network::Ethereum;
 use alloy::primitives::Address;
 use commit_boost::prelude::*;
 use std::sync::Arc;
 
-use crate::config::XGAConfig;
+use crate::config::{XGAConfig, RetryConfig};
 use crate::eigenlayer::EigenLayerConfig;
 
 /// Create a test configuration for EigenLayer
@@ -16,54 +15,41 @@ pub fn test_eigenlayer_config() -> EigenLayerConfig {
     }
 }
 
-/// Create a test CB config
+/// Create a test CB config - simplified mock for testing
 pub fn test_cb_config() -> Arc<StartCommitModuleConfig<XGAConfig>> {
-    let chain = Chain {
-        name: "ethereum".to_string(),
-        chain: "ethereum".to_string(),
-        rpc: vec!["https://eth-mainnet.example.com".to_string()],
-        currency: Currency {
-            name: "Ether".to_string(),
-            symbol: "ETH".to_string(),
-            decimals: 18,
-        },
-        chain_id: 1,
-        network_id: Some(1),
-        info_url: Some("https://ethereum.org".to_string()),
-        native_currency: Some(Currency {
-            name: "Ether".to_string(),
-            symbol: "ETH".to_string(),
-            decimals: 18,
-        }),
-        short_name: Some("eth".to_string()),
-        explorer_url: None,
-        parent: None,
-        ens: None,
-    };
+    // For testing purposes, we create a mock config. In real usage, this would be loaded
+    // via load_commit_module_config(). Since we can't easily construct all the internal
+    // types, we'll use a different approach for unit tests.
     
-    let xga_config = XGAConfig {
-        webhook_port: 8080,
+    // Create a minimal XGAConfig for testing
+    let _xga_config = XGAConfig {
+        polling_interval_secs: 5,
         xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
         eigenlayer: test_eigenlayer_config(),
     };
     
-    let signer_client = SignerClient::new("http://localhost:19551".to_string());
-    
-    Arc::new(StartCommitModuleConfig {
-        chain,
-        signer_client,
-        load_pbs_config: false,
-        pbs_config: None,
-        extra: xga_config,
-    })
+    // Note: In actual tests that need StartCommitModuleConfig, we should mock the
+    // specific functionality needed rather than trying to construct the full object.
+    // For now, we'll panic to indicate this needs proper mocking in tests.
+    panic!("test_cb_config should not be used directly - mock specific functionality instead")
 }
 
 /// Test operator address
 pub fn test_operator_address() -> Address {
     Address::from([0xab; 20])
+}
+
+/// Create a test XGA config
+pub fn test_xga_config() -> XGAConfig {
+    XGAConfig {
+        polling_interval_secs: 5,
+        xga_relays: vec!["https://relay.example.com".to_string()],
+        max_registration_age_secs: 60,
+        probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
+        eigenlayer: test_eigenlayer_config(),
+    }
 }

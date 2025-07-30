@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     infrastructure::get_current_timestamp,
-    types::{CommitmentHash, Nonce, RelayId},
+    types::{CommitmentHash, RelayId},
 };
 
 /// XGA module signing domain - "XGA_COMMITMENT" as bytes
@@ -72,34 +72,6 @@ mod commitment_hash_serde {
     }
 }
 
-/// Custom serde for nonce
-mod nonce_serde {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    use super::Nonce;
-
-    pub fn serialize<S>(nonce: &Nonce, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        hex::encode(nonce.as_bytes()).serialize(serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Nonce, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let bytes = hex::decode(&s).map_err(serde::de::Error::custom)?;
-        if bytes.len() != 32 {
-            return Err(serde::de::Error::custom("Nonce must be 32 bytes"));
-        }
-        let mut arr = [0u8; 32];
-        arr.copy_from_slice(&bytes);
-        Ok(Nonce::from_bytes(arr))
-    }
-}
-
 /// XGA-specific parameters for the commitment
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct XGAParameters {
@@ -147,10 +119,6 @@ pub struct XGACommitment {
 
     /// Module signing domain for XGA
     pub signing_domain: [u8; 32],
-
-    /// Nonce for replay protection (random 32 bytes)
-    #[serde(with = "nonce_serde")]
-    pub nonce: Nonce,
 }
 
 /// Signed XGA commitment ready to be sent to relay
@@ -200,7 +168,6 @@ impl XGACommitment {
             }),
             chain_id,
             signing_domain: XGA_SIGNING_DOMAIN,
-            nonce: Nonce::generate(),
         }
     }
 
@@ -252,7 +219,6 @@ impl tree_hash::TreeHash for XGACommitment {
             self.timestamp.tree_hash_root(),
             self.chain_id.tree_hash_root(),
             tree_hash::Hash256::from_slice(&self.signing_domain),
-            tree_hash::Hash256::from_slice(self.nonce.as_bytes()),
         ];
 
         // Calculate the merkle root using tree_hash utilities
@@ -317,9 +283,10 @@ mod tests {
 
         assert_ne!(commitment1.relay_id, commitment3.relay_id);
 
-        // Verify nonces are different (random)
-        assert_ne!(commitment1.nonce, commitment2.nonce);
-        assert_ne!(commitment1.nonce, commitment3.nonce);
+        // Verify timestamps exist
+        assert!(commitment1.timestamp > 0);
+        assert!(commitment2.timestamp > 0);
+        assert!(commitment3.timestamp > 0);
     }
 
     #[test]
@@ -392,9 +359,9 @@ mod tests {
         let hash3 = modified.get_tree_hash_root();
         assert_ne!(hash1, hash3);
 
-        // Even changing the nonce should change the hash
+        // Changing the timestamp should change the hash
         let mut modified2 = commitment.clone();
-        modified2.nonce = Nonce::from_bytes([0xFFu8; 32]);
+        modified2.timestamp += 1;
         let hash4 = modified2.get_tree_hash_root();
         assert_ne!(hash1, hash4);
     }

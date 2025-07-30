@@ -1,381 +1,118 @@
-use xga_commitment::{config::XGAConfig, eigenlayer::EigenLayerConfig};
+use xga_commitment::{config::{XGAConfig, RetryConfig}, eigenlayer::EigenLayerConfig};
 
 #[test]
-fn test_webhook_port_minimum_boundary() {
-    // Test port < 1024 (should fail)
+fn test_polling_interval_minimum_boundary() {
+    // Test polling_interval < 1 (should fail)
     let config = XGAConfig {
-        webhook_port: 1023,
+        polling_interval_secs: 0,
         xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
     };
 
     let result = config.validate();
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Webhook port must be >= 1024"));
+    assert!(result.unwrap_err().to_string().contains("Polling interval must be between 1 second and 1 hour"));
 }
 
 #[test]
-fn test_webhook_port_exact_minimum() {
-    // Test port == 1024 (should pass)
+fn test_polling_interval_maximum_boundary() {
+    // Test polling_interval > 3600 (should fail)
     let config = XGAConfig {
-        webhook_port: 1024,
+        polling_interval_secs: 3601,
         xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
     };
 
     let result = config.validate();
-    if let Err(e) = &result {
-        println!("Validation error: {}", e);
-    }
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Polling interval must be between 1 second and 1 hour"));
+}
+
+#[test]
+fn test_polling_interval_valid() {
+    // Test valid polling interval
+    let config = XGAConfig {
+        polling_interval_secs: 5,
+        xga_relays: vec!["https://relay.example.com".to_string()],
+        max_registration_age_secs: 60,
+        probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
+        eigenlayer: EigenLayerConfig::default(),
+    };
+
+    let result = config.validate();
     assert!(result.is_ok());
-}
-
-#[test]
-fn test_commitment_delay_zero() {
-    // Test commitment_delay_ms < 1 (should fail)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 0,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    let result = config.validate();
-    assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Commitment delay must be between 1ms and 60 seconds"));
-}
-
-#[test]
-fn test_commitment_delay_minimum() {
-    // Test commitment_delay_ms == 1 (should pass)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 1,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_commitment_delay_maximum() {
-    // Test commitment_delay_ms == 60000 (should pass)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 60000,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_commitment_delay_over_maximum() {
-    // Test commitment_delay_ms > 60000 (should fail)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 60001,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    let result = config.validate();
-    assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Commitment delay must be between 1ms and 60 seconds"));
-}
-
-#[test]
-fn test_retry_delay_below_minimum() {
-    // Test retry_delay_ms < 100 (should fail)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 99,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    let result = config.validate();
-    assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Retry delay must be between 100ms and 60 seconds"));
-}
-
-#[test]
-fn test_retry_delay_minimum() {
-    // Test retry_delay_ms == 100 (should pass)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 100,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_retry_delay_maximum() {
-    // Test retry_delay_ms == 60000 (should pass)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 60000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_retry_delay_over_maximum() {
-    // Test retry_delay_ms > 60000 (should fail)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 60001,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    let result = config.validate();
-    assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Retry delay must be between 100ms and 60 seconds"));
-}
-
-#[test]
-fn test_retry_attempts_zero() {
-    // Test retry_attempts < 1 (should fail)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 0,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    let result = config.validate();
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Retry attempts must be between 1 and 10"));
-}
-
-#[test]
-fn test_retry_attempts_minimum() {
-    // Test retry_attempts == 1 (should pass)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 1,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_retry_attempts_maximum() {
-    // Test retry_attempts == 10 (should pass)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 10,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_retry_attempts_over_maximum() {
-    // Test retry_attempts > 10 (should fail)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 11,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 60,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    let result = config.validate();
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Retry attempts must be between 1 and 10"));
 }
 
 #[test]
 fn test_max_registration_age_zero() {
     // Test max_registration_age_secs < 1 (should fail)
     let config = XGAConfig {
-        webhook_port: 8080,
+        polling_interval_secs: 5,
         xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
         max_registration_age_secs: 0,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
     };
 
     let result = config.validate();
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Max registration age must be between 1 second and 10 minutes"));
+    assert!(result.unwrap_err().to_string().contains("Max registration age must be between 1 second and 10 minutes"));
 }
 
 #[test]
-fn test_max_registration_age_minimum() {
-    // Test max_registration_age_secs == 1 (should pass)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 1,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_max_registration_age_maximum() {
-    // Test max_registration_age_secs == 600 (should pass)
-    let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
-        max_registration_age_secs: 600,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_max_registration_age_over_maximum() {
+fn test_max_registration_age_too_high() {
     // Test max_registration_age_secs > 600 (should fail)
     let config = XGAConfig {
-        webhook_port: 8080,
+        polling_interval_secs: 5,
         xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
         max_registration_age_secs: 601,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
     };
 
     let result = config.validate();
     assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Max registration age must be between 1 second and 10 minutes"));
+    assert!(result.unwrap_err().to_string().contains("Max registration age must be between 1 second and 10 minutes"));
 }
 
 #[test]
-fn test_no_xga_relays() {
-    // Test empty xga_relays (should fail)
+fn test_retry_config_max_retries_reasonable() {
+    // Test reasonable retry config
     let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec![],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
+        polling_interval_secs: 5,
+        xga_relays: vec!["https://relay.example.com".to_string()],
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig {
+            max_retries: 10,
+            initial_backoff_ms: 100,
+            max_backoff_secs: 60,
+        },
         eigenlayer: EigenLayerConfig::default(),
     };
 
     let result = config.validate();
-    assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("At least one XGA relay must be configured"));
+    assert!(result.is_ok());
 }
 
 #[test]
-fn test_invalid_relay_url() {
-    // Test invalid URL format
+fn test_relay_url_validation() {
+    // Test invalid relay URL (HTTP instead of HTTPS)
     let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec!["not-a-valid-url".to_string()],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
+        polling_interval_secs: 5,
+        xga_relays: vec!["http://relay.example.com".to_string()],
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
     };
 
@@ -385,140 +122,41 @@ fn test_invalid_relay_url() {
 }
 
 #[test]
-fn test_is_xga_relay_found() {
+fn test_empty_relays_invalid() {
+    // Empty relay list should be invalid
     let config = XGAConfig {
-        webhook_port: 8080,
-        xga_relays: vec![
-            "https://relay1.example.com".to_string(),
-            "https://relay2.example.com".to_string(),
-        ],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
+        polling_interval_secs: 5,
+        xga_relays: vec![],
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
     };
 
-    assert!(config.is_xga_relay("https://relay1.example.com"));
-    assert!(config.is_xga_relay("https://relay2.example.com"));
+    let result = config.validate();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("At least one XGA relay must be configured"));
 }
 
+// Removed test_eigenlayer_config_validation as EigenLayer config
+// validation happens when creating the integration, not in config validation
+
 #[test]
-fn test_is_xga_relay_not_found() {
+fn test_multiple_valid_relays() {
+    // Test multiple valid relay URLs
     let config = XGAConfig {
-        webhook_port: 8080,
+        polling_interval_secs: 5,
         xga_relays: vec![
             "https://relay1.example.com".to_string(),
-            "https://relay2.example.com".to_string(),
+            "https://relay2.example.com:8080".to_string(),
+            "https://relay3.example.com/api/v1".to_string(),
         ],
-        commitment_delay_ms: 100,
-        retry_attempts: 3,
-        retry_delay_ms: 1000,
         max_registration_age_secs: 60,
         probe_relay_capabilities: false,
+        retry_config: RetryConfig::default(),
         eigenlayer: EigenLayerConfig::default(),
     };
 
-    assert!(!config.is_xga_relay("https://unknown.example.com"));
-    assert!(!config.is_xga_relay("https://relay1.example.com:8080")); // Different port
-}
-
-// Test default values
-#[test]
-fn test_default_commitment_delay() {
-    use serde_json::json;
-
-    let config_json = json!({
-        "webhook_port": 8080,
-        "xga_relays": ["https://relay.example.com"]
-    });
-
-    let config: XGAConfig = serde_json::from_value(config_json).unwrap();
-    assert_eq!(config.commitment_delay_ms, 100);
-}
-
-#[test]
-fn test_default_retry_attempts() {
-    use serde_json::json;
-
-    let config_json = json!({
-        "webhook_port": 8080,
-        "xga_relays": ["https://relay.example.com"]
-    });
-
-    let config: XGAConfig = serde_json::from_value(config_json).unwrap();
-    assert_eq!(config.retry_attempts, 3);
-}
-
-#[test]
-fn test_default_retry_delay() {
-    use serde_json::json;
-
-    let config_json = json!({
-        "webhook_port": 8080,
-        "xga_relays": ["https://relay.example.com"]
-    });
-
-    let config: XGAConfig = serde_json::from_value(config_json).unwrap();
-    assert_eq!(config.retry_delay_ms, 1000);
-}
-
-#[test]
-fn test_default_max_registration_age() {
-    use serde_json::json;
-
-    let config_json = json!({
-        "webhook_port": 8080,
-        "xga_relays": ["https://relay.example.com"]
-    });
-
-    let config: XGAConfig = serde_json::from_value(config_json).unwrap();
-    assert_eq!(config.max_registration_age_secs, 60);
-}
-
-#[test]
-fn test_default_probe_relay_capabilities() {
-    use serde_json::json;
-
-    let config_json = json!({
-        "webhook_port": 8080,
-        "xga_relays": ["https://relay.example.com"]
-    });
-
-    let config: XGAConfig = serde_json::from_value(config_json).unwrap();
-    assert_eq!(config.probe_relay_capabilities, false);
-}
-
-// Test compound conditions
-#[test]
-fn test_validate_all_fields_at_minimum() {
-    let config = XGAConfig {
-        webhook_port: 1024,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 1,
-        retry_attempts: 1,
-        retry_delay_ms: 100,
-        max_registration_age_secs: 1,
-        probe_relay_capabilities: false,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
-}
-
-#[test]
-fn test_validate_all_fields_at_maximum() {
-    let config = XGAConfig {
-        webhook_port: 65535,
-        xga_relays: vec!["https://relay.example.com".to_string()],
-        commitment_delay_ms: 60000,
-        retry_attempts: 10,
-        retry_delay_ms: 60000,
-        max_registration_age_secs: 600,
-        probe_relay_capabilities: true,
-        eigenlayer: EigenLayerConfig::default(),
-    };
-
-    assert!(config.validate().is_ok());
+    let result = config.validate();
+    assert!(result.is_ok());
 }

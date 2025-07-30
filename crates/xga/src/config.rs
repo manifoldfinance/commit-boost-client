@@ -4,24 +4,38 @@ use serde::Deserialize;
 use crate::{eigenlayer::EigenLayerConfig, infrastructure::parse_and_validate_url};
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct RetryConfig {
+    /// Maximum number of retry attempts
+    #[serde(default = "default_max_retries")]
+    pub max_retries: u32,
+    
+    /// Initial backoff in milliseconds
+    #[serde(default = "default_initial_backoff_ms")]
+    pub initial_backoff_ms: u64,
+    
+    /// Maximum backoff in seconds
+    #[serde(default = "default_max_backoff_secs")]
+    pub max_backoff_secs: u64,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: default_max_retries(),
+            initial_backoff_ms: default_initial_backoff_ms(),
+            max_backoff_secs: default_max_backoff_secs(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct XGAConfig {
-    /// Port for the webhook server
-    pub webhook_port: u16,
+    /// Polling interval in seconds
+    #[serde(default = "default_polling_interval_secs")]
+    pub polling_interval_secs: u64,
 
     /// List of XGA-enabled relay URLs
     pub xga_relays: Vec<String>,
-
-    /// Delay in milliseconds before sending commitment after registration
-    #[serde(default = "default_commitment_delay_ms")]
-    pub commitment_delay_ms: u64,
-
-    /// Number of retry attempts for failed commitments
-    #[serde(default = "default_retry_attempts")]
-    pub retry_attempts: u32,
-
-    /// Delay between retry attempts in milliseconds
-    #[serde(default = "default_retry_delay_ms")]
-    pub retry_delay_ms: u64,
 
     /// Maximum age of registration in seconds to process
     #[serde(default = "default_max_registration_age_secs")]
@@ -31,21 +45,17 @@ pub struct XGAConfig {
     #[serde(default = "default_probe_relay_capabilities")]
     pub probe_relay_capabilities: bool,
 
+    /// Retry configuration
+    #[serde(default)]
+    pub retry_config: RetryConfig,
+
     /// EigenLayer integration configuration
     #[serde(default)]
     pub eigenlayer: EigenLayerConfig,
 }
 
-fn default_commitment_delay_ms() -> u64 {
-    100
-}
-
-fn default_retry_attempts() -> u32 {
-    3
-}
-
-fn default_retry_delay_ms() -> u64 {
-    1000
+fn default_polling_interval_secs() -> u64 {
+    5
 }
 
 fn default_max_registration_age_secs() -> u64 {
@@ -56,6 +66,18 @@ fn default_probe_relay_capabilities() -> bool {
     false
 }
 
+fn default_max_retries() -> u32 {
+    3
+}
+
+fn default_initial_backoff_ms() -> u64 {
+    100
+}
+
+fn default_max_backoff_secs() -> u64 {
+    5
+}
+
 impl XGAConfig {
     /// Check if a relay URL is XGA-enabled
     pub fn is_xga_relay(&self, relay_url: &str) -> bool {
@@ -64,26 +86,17 @@ impl XGAConfig {
 
     /// Validate the configuration
     pub fn validate(&self) -> eyre::Result<()> {
-        // Validate port range
-        if self.webhook_port < 1024 {
-            return Err(eyre::eyre!("Webhook port must be >= 1024 for non-root operation"));
-        }
-
-        // Validate delays and timeouts
-        if self.commitment_delay_ms < 1 || self.commitment_delay_ms > 60000 {
-            return Err(eyre::eyre!("Commitment delay must be between 1ms and 60 seconds"));
-        }
-
-        if self.retry_delay_ms < 100 || self.retry_delay_ms > 60000 {
-            return Err(eyre::eyre!("Retry delay must be between 100ms and 60 seconds"));
-        }
-
-        if self.retry_attempts < 1 || self.retry_attempts > 10 {
-            return Err(eyre::eyre!("Retry attempts must be between 1 and 10"));
+        // Validate polling interval
+        if self.polling_interval_secs < 1 || self.polling_interval_secs > 3600 {
+            return Err(eyre::eyre!(
+                "Polling interval must be between 1 second and 1 hour"
+            ));
         }
 
         if self.max_registration_age_secs < 1 || self.max_registration_age_secs > 600 {
-            return Err(eyre::eyre!("Max registration age must be between 1 second and 10 minutes"));
+            return Err(eyre::eyre!(
+                "Max registration age must be between 1 second and 10 minutes"
+            ));
         }
 
         // Validate at least one XGA relay is configured
@@ -95,6 +108,21 @@ impl XGAConfig {
         for relay_url in &self.xga_relays {
             parse_and_validate_url(relay_url)
                 .map_err(|e| eyre::eyre!("Invalid XGA relay URL: {}", e))?;
+        }
+
+        // Validate retry config
+        if self.retry_config.max_retries > 10 {
+            return Err(eyre::eyre!("Max retries must be <= 10"));
+        }
+
+        if self.retry_config.initial_backoff_ms < 10 || self.retry_config.initial_backoff_ms > 60000 {
+            return Err(eyre::eyre!(
+                "Initial backoff must be between 10ms and 60 seconds"
+            ));
+        }
+
+        if self.retry_config.max_backoff_secs > 300 {
+            return Err(eyre::eyre!("Max backoff must be <= 5 minutes"));
         }
 
         Ok(())
