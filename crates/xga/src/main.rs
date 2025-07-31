@@ -89,7 +89,7 @@ async fn polling_loop(
         interval.tick().await;
 
         // Spawn concurrent tasks for all relays
-        let mut tasks = vec![];
+        let mut tasks = Vec::with_capacity(config.extra.xga_relays.len());
         for relay_url in &config.extra.xga_relays {
             let relay_url = relay_url.clone();
             let poller = poller.clone();

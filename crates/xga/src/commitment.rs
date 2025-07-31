@@ -1,6 +1,9 @@
 use alloy_rpc_types::beacon::relay::ValidatorRegistration;
 use commit_boost::prelude::*;
 use serde::{Deserialize, Serialize};
+use ssz::Encode;
+use ssz_derive::{Decode, Encode};
+use tree_hash_derive::TreeHash;
 
 use crate::{
     infrastructure::get_current_timestamp,
@@ -73,7 +76,7 @@ mod commitment_hash_serde {
 }
 
 /// XGA-specific parameters for the commitment
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct XgaParameters {
     /// Version of the XGA protocol
     pub version: u64,
@@ -92,7 +95,7 @@ impl Default for XgaParameters {
 }
 
 /// XGA commitment that cryptographically ties to a validator registration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, TreeHash)]
 pub struct XgaCommitment {
     /// Hash of the validator registration this commitment is tied to
     #[serde(with = "commitment_hash_serde")]
@@ -122,7 +125,7 @@ pub struct XgaCommitment {
 }
 
 /// Signed XGA commitment ready to be sent to relay
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct SignedXgaCommitment {
     pub message: XgaCommitment,
     pub signature: BlsSignature,
@@ -141,11 +144,21 @@ pub struct RegistrationNotification {
     pub timestamp: u64,
 }
 
+/// SSZ-encodable version of ValidatorRegistration
+#[derive(Encode, Decode)]
+struct SszValidatorRegistration {
+    pubkey: [u8; 48],
+    fee_recipient: [u8; 20],
+    gas_limit: u64,
+    timestamp: u64,
+    signature: [u8; 96],
+}
+
 impl XgaCommitment {
     /// Get the tree hash root for this commitment
     #[must_use]
     pub fn get_tree_hash_root(&self) -> tree_hash::Hash256 {
-        // Call the manually implemented tree_hash_root directly
+        // Use the derived tree_hash_root implementation
         <Self as tree_hash::TreeHash>::tree_hash_root(self)
     }
 
@@ -178,21 +191,17 @@ impl XgaCommitment {
     pub fn hash_registration(registration: &ValidatorRegistration) -> [u8; 32] {
         use sha2::{Digest, Sha256};
 
-        // SSZ encode the registration data manually
-        // SSZ encoding for fixed-size container with fields:
-        // - pubkey: 48 bytes
-        // - fee_recipient: 20 bytes
-        // - gas_limit: 8 bytes (little-endian)
-        // - timestamp: 8 bytes (little-endian)
-        // - signature: 96 bytes
-        let mut ssz_bytes = Vec::with_capacity(48 + 20 + 8 + 8 + 96);
+        // Create SSZ-encodable version of the registration
+        let ssz_registration = SszValidatorRegistration {
+            pubkey: registration.message.pubkey.0,
+            fee_recipient: registration.message.fee_recipient.0.into(),
+            gas_limit: registration.message.gas_limit,
+            timestamp: registration.message.timestamp,
+            signature: registration.signature.0,
+        };
 
-        // Append fields in order
-        ssz_bytes.extend_from_slice(&registration.message.pubkey.0);
-        ssz_bytes.extend_from_slice(registration.message.fee_recipient.as_slice());
-        ssz_bytes.extend_from_slice(&registration.message.gas_limit.to_le_bytes());
-        ssz_bytes.extend_from_slice(&registration.message.timestamp.to_le_bytes());
-        ssz_bytes.extend_from_slice(&registration.signature.0);
+        // Use SSZ encoding from the derived implementation
+        let ssz_bytes = ssz_registration.as_ssz_bytes();
 
         // Hash the SSZ encoded bytes
         let mut hasher = Sha256::new();
@@ -205,47 +214,6 @@ impl XgaCommitment {
     }
 }
 
-// Manual TreeHash implementation for XGACommitment
-impl tree_hash::TreeHash for XgaCommitment {
-    fn tree_hash_root(&self) -> tree_hash::Hash256 {
-        // Create a vector with all the leaf hashes
-        let leaves = vec![
-            tree_hash::Hash256::from_slice(self.registration_hash.as_bytes()),
-            self.validator_pubkey.tree_hash_root(),
-            tree_hash::Hash256::from_slice(self.relay_id.as_bytes()),
-            self.xga_version.tree_hash_root(),
-            // Hash parameters fields individually
-            self.parameters.version.tree_hash_root(),
-            self.parameters.min_inclusion_slot.tree_hash_root(),
-            self.parameters.max_inclusion_slot.tree_hash_root(),
-            self.parameters.flags.tree_hash_root(),
-            self.timestamp.tree_hash_root(),
-            self.chain_id.tree_hash_root(),
-            tree_hash::Hash256::from_slice(&self.signing_domain),
-        ];
-
-        // Calculate the merkle root using tree_hash utilities
-        // Convert leaves to bytes for merkle_root function
-        let mut bytes = Vec::with_capacity(leaves.len() * 32);
-        for leaf in &leaves {
-            bytes.extend_from_slice(&leaf.0);
-        }
-
-        tree_hash::merkle_root(&bytes, leaves.len())
-    }
-
-    fn tree_hash_type() -> tree_hash::TreeHashType {
-        tree_hash::TreeHashType::Container
-    }
-
-    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
-        unreachable!("Container types are not packed")
-    }
-
-    fn tree_hash_packing_factor() -> usize {
-        unreachable!("Container types are not packed")
-    }
-}
 
 #[cfg(test)]
 mod tests {
