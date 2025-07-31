@@ -77,18 +77,8 @@ pub fn get_current_timestamp() -> Result<u64> {
 
 /// Constant-time comparison for security-sensitive operations
 #[must_use]
-#[allow(dead_code)]
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-
-    let mut result = 0u8;
-    for (x, y) in a.iter().zip(b.iter()) {
-        result |= x ^ y;
-    }
-
-    result == 0
+    constant_time_eq::constant_time_eq(a, b)
 }
 
 

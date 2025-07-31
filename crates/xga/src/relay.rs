@@ -19,7 +19,58 @@ struct XgaRelayResponse {
     commitment_id: Option<String>,
 }
 
-/// Send signed XGA commitment to relay
+/// Sends a signed XGA commitment to a relay.
+///
+/// This function handles the HTTP communication with the relay, including
+/// automatic retries based on the configured retry policy. It constructs
+/// the proper XGA endpoint URL and handles various response scenarios.
+///
+/// # Arguments
+///
+/// * `signed_commitment` - The signed XGA commitment to send
+/// * `relay_url` - Base URL of the relay (e.g., "https://relay.example.com")
+/// * `retry_config` - Configuration for retry behavior
+/// * `http_client_factory` - Factory for creating HTTP clients
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - HTTP client creation fails
+/// - All retry attempts fail
+/// - Relay returns an error response
+/// - Relay response indicates the commitment was rejected
+///
+/// # Retry Behavior
+///
+/// The function will retry on:
+/// - Network errors
+/// - 5xx server errors
+/// - Timeouts
+///
+/// It will NOT retry on:
+/// - 4xx client errors (except 429)
+/// - Successful responses with `success: false`
+///
+/// # Example
+///
+/// ```no_run
+/// # use xga_commitment::relay::send_to_relay;
+/// # use xga_commitment::commitment::SignedXgaCommitment;
+/// # use xga_commitment::config::RetryConfig;
+/// # use xga_commitment::infrastructure::HttpClientFactory;
+/// # async fn example() -> eyre::Result<()> {
+/// # let signed_commitment: SignedXgaCommitment = todo!();
+/// # let http_client_factory = HttpClientFactory::new();
+/// # let retry_config = RetryConfig::default();
+/// send_to_relay(
+///     signed_commitment,
+///     "https://relay.example.com",
+///     &retry_config,
+///     &http_client_factory,
+/// ).await?;
+/// # Ok(())
+/// # }
+/// ```
 pub async fn send_to_relay(
     signed_commitment: SignedXgaCommitment,
     relay_url: &str,
@@ -136,7 +187,47 @@ async fn send_commitment(
     }
 }
 
-/// Check if a relay supports XGA by probing the capability endpoint
+/// Checks if a relay supports XGA commitments.
+///
+/// This function uses multiple approaches to detect XGA support:
+/// 1. Checks for a dedicated XGA capabilities endpoint
+/// 2. Sends an OPTIONS request to the commitment endpoint
+/// 3. Checks for XGA-specific headers in responses
+///
+/// The function is designed to be resilient and will not fail if the
+/// relay is temporarily unavailable. It uses a short timeout (5 seconds)
+/// to avoid blocking for too long.
+///
+/// # Arguments
+///
+/// * `relay_url` - Base URL of the relay to check
+/// * `http_client_factory` - Factory for creating HTTP clients
+///
+/// # Returns
+///
+/// Returns `true` if the relay appears to support XGA, `false` otherwise.
+/// This includes cases where the relay is unreachable or returns errors.
+///
+/// # Example
+///
+/// ```no_run
+/// # use xga_commitment::relay::check_xga_support;
+/// # use xga_commitment::infrastructure::HttpClientFactory;
+/// # async fn example() -> eyre::Result<()> {
+/// let http_client_factory = HttpClientFactory::new();
+/// let supports_xga = check_xga_support(
+///     "https://relay.example.com",
+///     &http_client_factory,
+/// ).await;
+/// 
+/// if supports_xga {
+///     println!("Relay supports XGA commitments");
+/// } else {
+///     println!("Relay does not support XGA or is unavailable");
+/// }
+/// # Ok(())
+/// # }
+/// ```
 pub async fn check_xga_support(relay_url: &str, http_client_factory: &HttpClientFactory) -> bool {
     let client = match http_client_factory.create_client_with_timeout(Duration::from_secs(5)) {
         Ok(c) => c,

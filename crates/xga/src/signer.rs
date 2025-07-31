@@ -11,12 +11,50 @@ use crate::{
     validation::validate_commitment,
 };
 
-/// Process a commitment by signing it and sending to the relay
+/// Processes an XGA commitment by signing it and sending to the relay.
+///
+/// This function orchestrates the complete commitment processing flow:
+/// 1. Validates the commitment
+/// 2. Checks rate limits per validator
+/// 3. Checks circuit breaker status for the relay
+/// 4. Signs the commitment using the validator's BLS key
+/// 5. Verifies the signature (defensive programming)
+/// 6. Sends the signed commitment to the relay
+/// 7. Updates circuit breaker status based on success/failure
+///
+/// # Arguments
+///
+/// * `commitment` - The XGA commitment to process
+/// * `relay_url` - URL of the relay to send the commitment to
+/// * `config` - Module configuration including signer client
+/// * `circuit_breaker` - Circuit breaker for relay fault tolerance
+/// * `http_client_factory` - Factory for creating HTTP clients
+/// * `validator_rate_limiter` - Rate limiter for per-validator limits
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The commitment fails validation
+/// - Rate limit is exceeded for the validator
+/// - Circuit breaker is open for the relay
+/// - Signing fails
+/// - Signature verification fails
+/// - Relay submission fails
+///
+/// # Example
+///
+/// ```no_run
+/// # use xga_commitment::signer::process_commitment;
+/// # async fn example() -> eyre::Result<()> {
+/// // Assumes you have all the required components initialized
+/// # todo!()
+/// # }
+/// ```
 pub async fn process_commitment(
     commitment: XgaCommitment,
     relay_url: &str,
     config: Arc<StartCommitModuleConfig<XgaConfig>>,
-    _circuit_breaker: &CircuitBreaker,
+    circuit_breaker: &CircuitBreaker,
     http_client_factory: &HttpClientFactory,
     validator_rate_limiter: &ValidatorRateLimiter,
 ) -> eyre::Result<()> {
@@ -38,6 +76,15 @@ pub async fn process_commitment(
         return Err(eyre::eyre!("Rate limit exceeded for validator"));
     }
 
+    // Check circuit breaker before processing
+    if circuit_breaker.is_open(relay_url).await {
+        warn!(
+            relay_url = relay_url,
+            "Circuit breaker is open for relay, skipping commitment"
+        );
+        return Err(eyre::eyre!("Circuit breaker is open for relay"));
+    }
+
     // Get the signature
     let signature = sign_commitment(&commitment, &config).await?;
 
@@ -54,15 +101,25 @@ pub async fn process_commitment(
     let signed_commitment = SignedXgaCommitment { message: commitment, signature };
 
     // Send to relay with retries
-    send_to_relay(
+    let result = send_to_relay(
         signed_commitment,
         relay_url,
         &config.extra.retry_config,
         http_client_factory,
     )
-    .await?;
+    .await;
 
-    Ok(())
+    // Record success or failure with circuit breaker
+    match result {
+        Ok(()) => {
+            circuit_breaker.record_success(relay_url).await;
+            Ok(())
+        }
+        Err(e) => {
+            circuit_breaker.record_failure(relay_url).await;
+            Err(e)
+        }
+    }
 }
 
 /// Sign an XGA commitment using the validator's BLS key
@@ -103,7 +160,40 @@ async fn sign_commitment(
 /// purposes
 const XGA_DST: &[u8] = b"BLS_SIG_XGA_COMMITMENT_COMMIT_BOOST";
 
-/// Verify a BLS signature on an XGA commitment
+/// Verifies a BLS signature on an XGA commitment.
+///
+/// This function performs cryptographic verification of a BLS signature
+/// using the XGA-specific domain separation tag to ensure signatures
+/// cannot be reused for other purposes.
+///
+/// # Arguments
+///
+/// * `commitment` - The XGA commitment that was signed
+/// * `signature` - The BLS signature to verify
+/// * `pubkey` - The public key to verify the signature against
+///
+/// # Returns
+///
+/// Returns `true` if the signature is valid, `false` otherwise.
+/// This function never panics and handles all error cases by returning false.
+///
+/// # Security Note
+///
+/// This function uses the XGA-specific domain separation tag `XGA_DST`
+/// to prevent signature reuse attacks between different protocols.
+///
+/// # Example
+///
+/// ```no_run
+/// # use xga_commitment::signer::verify_signature;
+/// # use xga_commitment::commitment::XgaCommitment;
+/// # use commit_boost::prelude::{BlsSignature, BlsPublicKey};
+/// # let commitment: XgaCommitment = todo!();
+/// # let signature: BlsSignature = todo!();
+/// # let pubkey: BlsPublicKey = todo!();
+/// let is_valid = verify_signature(&commitment, &signature, &pubkey);
+/// assert!(is_valid);
+/// ```
 pub fn verify_signature(
     commitment: &XgaCommitment,
     signature: &BlsSignature,
