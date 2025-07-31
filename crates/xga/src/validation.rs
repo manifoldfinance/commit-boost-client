@@ -7,7 +7,29 @@ use url::Url;
 
 use crate::commitment::{XgaCommitment, XgaParameters};
 
-/// Validate a BLS public key
+/// Validates a BLS public key for correctness.
+///
+/// This function ensures that the public key has the correct length (48 bytes)
+/// and is not the zero key, which is invalid in BLS cryptography.
+///
+/// # Arguments
+///
+/// * `pubkey` - The BLS public key to validate
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The public key is not exactly 48 bytes
+/// - The public key is all zeros (invalid zero key)
+///
+/// # Example
+///
+/// ```no_run
+/// # use commit_boost::prelude::BlsPublicKey;
+/// # use xga_commitment::validation::validate_validator_pubkey;
+/// let pubkey = BlsPublicKey::from([1u8; 48]);
+/// assert!(validate_validator_pubkey(&pubkey).is_ok());
+/// ```
 pub fn validate_validator_pubkey(pubkey: &BlsPublicKey) -> Result<()> {
     // BLS public keys must be exactly 48 bytes
     ensure!(pubkey.0.len() == 48, "Invalid BLS public key length: expected 48 bytes, got {}", pubkey.0.len());
@@ -18,7 +40,35 @@ pub fn validate_validator_pubkey(pubkey: &BlsPublicKey) -> Result<()> {
     Ok(())
 }
 
-/// Validate XGA parameters
+/// Validates XGA parameters for correctness and consistency.
+///
+/// This function ensures that the XGA parameters follow the protocol rules,
+/// including version constraints, slot range validity, and flag restrictions.
+///
+/// # Arguments
+///
+/// * `params` - The XGA parameters to validate
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Version is not between 1 and 100 (reasonable range)
+/// - Min inclusion slot is > max inclusion slot
+/// - Slot range exceeds 1000 slots (reasonable limit)
+///
+/// # Example
+///
+/// ```no_run
+/// # use xga_commitment::commitment::XgaParameters;
+/// # use xga_commitment::validation::validate_xga_parameters;
+/// let params = XgaParameters {
+///     version: 1,
+///     min_inclusion_slot: 100,
+///     max_inclusion_slot: 150,
+///     flags: 0,
+/// };
+/// assert!(validate_xga_parameters(&params).is_ok());
+/// ```
 pub fn validate_xga_parameters(params: &XgaParameters) -> Result<()> {
     // Version must be reasonable
     ensure!(params.version > 0 && params.version <= 100, "Invalid XGA version: {}", params.version);
@@ -42,7 +92,38 @@ pub fn validate_xga_parameters(params: &XgaParameters) -> Result<()> {
     Ok(())
 }
 
-/// Validate an XGA commitment
+/// Validates a complete XGA commitment for correctness.
+///
+/// This function performs comprehensive validation of an XGA commitment,
+/// including all nested structures and ensuring the commitment follows
+/// protocol rules.
+///
+/// # Arguments
+///
+/// * `commitment` - The XGA commitment to validate
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Validator public key is invalid (see [`validate_validator_pubkey`])
+/// - XGA parameters are invalid (see [`validate_xga_parameters`])
+/// - Timestamp is more than 5 minutes in the future (prevents replay attacks)
+///
+/// # Example
+///
+/// ```no_run
+/// # use xga_commitment::commitment::{XgaCommitment, XgaParameters};
+/// # use xga_commitment::validation::validate_commitment;
+/// # use commit_boost::prelude::BlsPublicKey;
+/// let commitment = XgaCommitment::new(
+///     [1u8; 32], // registration_hash
+///     BlsPublicKey::from([1u8; 48]),
+///     "test-relay",
+///     1, // xga_version
+///     XgaParameters::default(),
+/// );
+/// assert!(validate_commitment(&commitment).is_ok());
+/// ```
 pub fn validate_commitment(commitment: &XgaCommitment) -> Result<()> {
     // Validate the validator pubkey
     validate_validator_pubkey(&commitment.validator_pubkey)?;
@@ -66,7 +147,31 @@ pub fn validate_commitment(commitment: &XgaCommitment) -> Result<()> {
     Ok(())
 }
 
-/// Validate a validator registration from relay
+/// Validates a validator registration for the mev-boost protocol.
+///
+/// This function ensures that the validator registration contains valid
+/// data that can be safely processed by relays.
+///
+/// # Arguments
+///
+/// * `registration` - The validator registration to validate
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Fee recipient is the zero address (0x0...0)
+/// - Gas limit is less than 1M or greater than 50M
+/// - Public key is invalid BLS format
+///
+/// # Example
+///
+/// ```no_run
+/// # use alloy::rpc::types::beacon::relay::ValidatorRegistration;
+/// # use xga_commitment::validation::validate_registration;
+/// // Assumes you have a valid ValidatorRegistration
+/// # let registration: ValidatorRegistration = todo!();
+/// assert!(validate_registration(&registration).is_ok());
+/// ```
 pub fn validate_registration(registration: &ValidatorRegistration) -> Result<()> {
     // Validate the validator pubkey
     validate_validator_pubkey(&registration.message.pubkey)?;
@@ -87,7 +192,30 @@ pub fn validate_registration(registration: &ValidatorRegistration) -> Result<()>
     Ok(())
 }
 
-/// Validate a relay URL
+/// Validates a relay URL for security and correctness.
+///
+/// This function ensures that relay URLs are properly formatted, use HTTPS,
+/// and have a valid host.
+///
+/// # Arguments
+///
+/// * `url` - The relay URL string to validate
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - URL cannot be parsed as a valid URL
+/// - URL scheme is not HTTPS (HTTP is not allowed)
+/// - URL doesn't have a valid host
+///
+/// # Example
+///
+/// ```no_run
+/// # use xga_commitment::validation::validate_relay_url;
+/// assert!(validate_relay_url("https://relay.example.com").is_ok());
+/// assert!(validate_relay_url("http://relay.example.com").is_err()); // Not HTTPS
+/// assert!(validate_relay_url("https://").is_err()); // No host
+/// ```
 pub fn validate_relay_url(url: &str) -> Result<()> {
     // Parse URL
     let parsed_url = Url::parse(url)?;
