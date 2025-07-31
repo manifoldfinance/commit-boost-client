@@ -3,9 +3,11 @@
 use std::fmt;
 
 use sha2::{Digest, Sha256};
+use ssz_derive::{Decode, Encode};
 
 /// Type-safe wrapper for relay identifiers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encode, Decode)]
+#[ssz(struct_behaviour = "transparent")]
 pub struct RelayId([u8; 32]);
 
 impl RelayId {
@@ -50,8 +52,27 @@ impl AsRef<[u8]> for RelayId {
     }
 }
 
+impl tree_hash::TreeHash for RelayId {
+    fn tree_hash_root(&self) -> tree_hash::Hash256 {
+        tree_hash::Hash256::from_slice(&self.0)
+    }
+
+    fn tree_hash_type() -> tree_hash::TreeHashType {
+        tree_hash::TreeHashType::Vector
+    }
+
+    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
+        unreachable!("Vector should never be packed.")
+    }
+
+    fn tree_hash_packing_factor() -> usize {
+        unreachable!("Vector should never be packed.")
+    }
+}
+
 /// Type-safe wrapper for commitment hashes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Encode, Decode)]
+#[ssz(struct_behaviour = "transparent")]
 pub struct CommitmentHash([u8; 32]);
 
 impl CommitmentHash {
@@ -86,6 +107,24 @@ impl From<[u8; 32]> for CommitmentHash {
 impl AsRef<[u8]> for CommitmentHash {
     fn as_ref(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl tree_hash::TreeHash for CommitmentHash {
+    fn tree_hash_root(&self) -> tree_hash::Hash256 {
+        tree_hash::Hash256::from_slice(&self.0)
+    }
+
+    fn tree_hash_type() -> tree_hash::TreeHashType {
+        tree_hash::TreeHashType::Vector
+    }
+
+    fn tree_hash_packed_encoding(&self) -> tree_hash::PackedEncoding {
+        unreachable!("Vector should never be packed.")
+    }
+
+    fn tree_hash_packing_factor() -> usize {
+        unreachable!("Vector should never be packed.")
     }
 }
 
