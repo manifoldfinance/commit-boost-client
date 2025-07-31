@@ -623,9 +623,13 @@ mod test {
 
     #[tokio::test]
     async fn test_erc2335_store_and_load() {
-        let tmp_path = std::env::temp_dir().join("test_erc2335_store_and_load");
+        let tmp_path = std::env::temp_dir().join(format!("test_erc2335_store_and_load_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis()));
         let keys_path = tmp_path.join("keys");
         let secrets_path = tmp_path.join("secrets");
+        
+        // Clean up any existing directories
+        let _ = std::fs::remove_dir_all(&tmp_path);
+        
         let store = ProxyStore::ERC2335 {
             keys_path: keys_path.clone(),
             secrets_path: secrets_path.clone(),
@@ -652,6 +656,9 @@ mod test {
         store.store_proxy_bls(&module_id, &proxy_signer).unwrap();
 
         let load_result = store.load_proxies();
+        if let Err(e) = &load_result {
+            eprintln!("load_proxies error: {:?}", e);
+        }
         assert!(load_result.is_ok());
 
         let (proxy_signers, bls_keys, ecdsa_keys) = load_result.unwrap();
@@ -686,5 +693,8 @@ mod test {
         assert!(bls_keys
             .get(&ModuleId("TEST_MODULE".into()))
             .is_some_and(|keys| keys.contains(&proxy_signer.pubkey())));
+        
+        // Clean up
+        let _ = std::fs::remove_dir_all(&tmp_path);
     }
 }
