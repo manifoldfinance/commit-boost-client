@@ -68,7 +68,7 @@ pub fn random_secret() -> BlsSecretKey {
     let mut ikm = [0u8; 32];
     rng.fill_bytes(&mut ikm);
 
-    BlsSecretKey::key_gen(&ikm, &[]).unwrap_or_else(|_| { unreachable!() })
+    BlsSecretKey::key_gen(&ikm, &[]).unwrap_or_else(|_| unreachable!())
 }
 
 pub fn verify_bls_signature(

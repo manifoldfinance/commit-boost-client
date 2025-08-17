@@ -71,7 +71,7 @@ impl MockRelayState {
     pub fn set_response_override(&self, status: StatusCode) {
         *self.response_override.write().unwrap() = Some(status);
     }
-    
+
     pub fn reset_counter(&self) {
         self.received_get_header.store(0, Ordering::Relaxed);
         self.received_get_status.store(0, Ordering::Relaxed);

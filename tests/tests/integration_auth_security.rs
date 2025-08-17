@@ -1,6 +1,9 @@
 use std::{
     collections::HashMap,
-    sync::{Arc, atomic::{AtomicUsize, Ordering}},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 
@@ -30,10 +33,15 @@ const JWT_SECRET_1: &str = "super-secret-key-1";
 const JWT_SECRET_2: &str = "super-secret-key-2";
 const JWT_SECRET_3: &str = "stress-test-secret";
 const ADMIN_SECRET: &str = "admin-integration-secret";
-const PUBKEY_1: [u8; 48] = [0x88, 0x38, 0x27, 0x19, 0x3f, 0x76, 0x27, 0xcd, 0x04, 0xe6, 0x21, 0xe1, 0xe8, 0xd5, 0x64, 0x98, 0x36, 0x2a, 0x52, 0xb2, 0xa3, 0x0c, 0x9a, 0x1c, 0x72, 0x03, 0x6e, 0xb9, 0x35, 0xc4, 0x27, 0x8d, 0xee, 0x23, 0xd3, 0x8a, 0x24, 0xd2, 0xf7, 0xdd, 0xa6, 0x26, 0x89, 0x88, 0x6f, 0x0c, 0x39, 0xf4];
+const PUBKEY_1: [u8; 48] = [
+    0x88, 0x38, 0x27, 0x19, 0x3f, 0x76, 0x27, 0xcd, 0x04, 0xe6, 0x21, 0xe1, 0xe8, 0xd5, 0x64, 0x98,
+    0x36, 0x2a, 0x52, 0xb2, 0xa3, 0x0c, 0x9a, 0x1c, 0x72, 0x03, 0x6e, 0xb9, 0x35, 0xc4, 0x27, 0x8d,
+    0xee, 0x23, 0xd3, 0x8a, 0x24, 0xd2, 0xf7, 0xdd, 0xa6, 0x26, 0x89, 0x88, 0x6f, 0x0c, 0x39, 0xf4,
+];
 
 async fn create_multi_module_signing_configs() -> HashMap<ModuleId, ModuleSigningConfig> {
-    let mut cfg = utils::get_commit_boost_config(utils::get_pbs_static_config(utils::get_pbs_config(0)));
+    let mut cfg =
+        utils::get_commit_boost_config(utils::get_pbs_static_config(utils::get_pbs_config(0)));
 
     let module_id_1 = ModuleId(JWT_MODULE_1.to_string());
     let signing_id_1 = b256!("0x1111111111111111111111111111111111111111111111111111111111111111");
@@ -71,12 +79,12 @@ async fn test_jwt_auth_rate_limiting_parallel() -> Result<()> {
     // Trigger rate limit with parallel invalid requests
     let invalid_jwt = create_jwt(&module_id, "wrong-secret")?;
     let mut handles = vec![];
-    
+
     for i in 0..start_config.jwt_auth_fail_limit {
         let client = client.clone();
         let url = url.clone();
         let jwt = invalid_jwt.clone();
-        
+
         handles.push(tokio::spawn(async move {
             let response = client.get(&url).bearer_auth(&jwt).send().await.unwrap();
             (i, response.status())
@@ -188,9 +196,10 @@ async fn test_concurrent_signing_requests() -> Result<()> {
         let client = client.clone();
         let url = sign_url.clone();
         let jwt = jwt.clone();
-        
+
         handles.push(tokio::spawn(async move {
-            let object_root = b256!("0x0123456789012345678901234567890123456789012345678901234567890123");
+            let object_root =
+                b256!("0x0123456789012345678901234567890123456789012345678901234567890123");
             let request = SignRequest::Consensus(SignConsensusRequest {
                 pubkey: FixedBytes(PUBKEY_1),
                 object_root,
@@ -199,7 +208,7 @@ async fn test_concurrent_signing_requests() -> Result<()> {
             let start_time = Instant::now();
             let response = client.post(&url).json(&request).bearer_auth(&jwt).send().await.unwrap();
             let duration = start_time.elapsed();
-            
+
             (i, response.status(), duration)
         }));
     }
@@ -211,7 +220,7 @@ async fn test_concurrent_signing_requests() -> Result<()> {
     for handle in handles {
         let (i, status, duration) = handle.await?;
         total_duration += duration;
-        
+
         if status == StatusCode::OK {
             success_count += 1;
         } else {
@@ -220,11 +229,13 @@ async fn test_concurrent_signing_requests() -> Result<()> {
     }
 
     assert_eq!(success_count, concurrent_requests, "All signing requests should succeed");
-    
+
     let avg_duration = total_duration / concurrent_requests as u32;
-    info!("✓ {} concurrent signing requests completed, avg duration: {:?}", 
-          concurrent_requests, avg_duration);
-    
+    info!(
+        "✓ {} concurrent signing requests completed, avg duration: {:?}",
+        concurrent_requests, avg_duration
+    );
+
     // Ensure reasonable performance (less than 1 second per request on average)
     assert!(avg_duration < Duration::from_secs(1), "Average request time should be reasonable");
 
@@ -249,21 +260,20 @@ async fn test_pbs_signer_auth_flow() -> Result<()> {
     // Step 1: PBS gets validator pubkeys from signer
     let response = client.get(&pubkeys_url).bearer_auth(&jwt).send().await?;
     assert_eq!(response.status(), StatusCode::OK, "PBS should get pubkeys successfully");
-    
-    let pubkeys_response = response.json::<cb_common::commit::request::GetPubkeysResponse>().await?;
+
+    let pubkeys_response =
+        response.json::<cb_common::commit::request::GetPubkeysResponse>().await?;
     assert!(!pubkeys_response.keys.is_empty(), "Should return validator pubkeys");
     info!("✓ PBS retrieved {} pubkeys from signer", pubkeys_response.keys.len());
 
     // Step 2: PBS requests signature for consensus object
     let object_root = b256!("0xbeefcafefeeddeadbeefcafefeeddeadbeefcafefeeddeadbeefcafefeeddeaa");
-    let request = SignRequest::Consensus(SignConsensusRequest {
-        pubkey: FixedBytes(PUBKEY_1),
-        object_root,
-    });
+    let request =
+        SignRequest::Consensus(SignConsensusRequest { pubkey: FixedBytes(PUBKEY_1), object_root });
 
     let response = client.post(&sign_url).json(&request).bearer_auth(&jwt).send().await?;
     assert_eq!(response.status(), StatusCode::OK, "PBS should get signature successfully");
-    
+
     let signature = response.text().await?;
     assert!(!signature.is_empty(), "Signature should not be empty");
     info!("✓ PBS got signature from signer: {} chars", signature.len());
@@ -293,8 +303,10 @@ async fn test_auth_stress_1000_requests_per_second() -> Result<()> {
     let test_duration = Duration::from_secs(3); // 3 seconds of stress testing
     let total_requests = (target_rps * test_duration.as_secs() as usize) / 3; // Adjust for 3-second test
 
-    info!("Starting stress test: {} requests over {:?} targeting {} RPS", 
-          total_requests, test_duration, target_rps);
+    info!(
+        "Starting stress test: {} requests over {:?} targeting {} RPS",
+        total_requests, test_duration, target_rps
+    );
 
     let success_count = Arc::new(AtomicUsize::new(0));
     let error_count = Arc::new(AtomicUsize::new(0));
@@ -313,20 +325,20 @@ async fn test_auth_stress_1000_requests_per_second() -> Result<()> {
         let jwt = jwt.clone();
         let success_count = Arc::clone(&success_count);
         let error_count = Arc::clone(&error_count);
-        
+
         batch_handles.push(tokio::spawn(async move {
             // Wait for this batch's time slot
             sleep(delay_between_batches * batch_idx as u32).await;
-            
+
             let mut request_handles = vec![];
-            
+
             for _ in 0..batch_size {
                 let client = Arc::clone(&client);
                 let url = url.clone();
                 let jwt = jwt.clone();
                 let success_count = Arc::clone(&success_count);
                 let error_count = Arc::clone(&error_count);
-                
+
                 request_handles.push(tokio::spawn(async move {
                     match client.get(&url).bearer_auth(&jwt).send().await {
                         Ok(response) => {
@@ -342,7 +354,7 @@ async fn test_auth_stress_1000_requests_per_second() -> Result<()> {
                     }
                 }));
             }
-            
+
             // Wait for all requests in this batch
             for handle in request_handles {
                 let _ = handle.await;
@@ -356,10 +368,12 @@ async fn test_auth_stress_1000_requests_per_second() -> Result<()> {
     }
 
     let actual_duration = start_time.elapsed();
-    let total_processed = success_count.load(Ordering::Relaxed) + error_count.load(Ordering::Relaxed);
+    let total_processed =
+        success_count.load(Ordering::Relaxed) + error_count.load(Ordering::Relaxed);
     let actual_rps = total_processed as f64 / actual_duration.as_secs_f64();
 
-    let success_rate = success_count.load(Ordering::Relaxed) as f64 / total_processed as f64 * 100.0;
+    let success_rate =
+        success_count.load(Ordering::Relaxed) as f64 / total_processed as f64 * 100.0;
 
     info!("Stress test completed:");
     info!("  Duration: {:?}", actual_duration);
@@ -373,8 +387,10 @@ async fn test_auth_stress_1000_requests_per_second() -> Result<()> {
     assert!(actual_rps >= 500.0, "Should handle at least 500 RPS (got {:.1})", actual_rps);
     assert!(success_rate >= 95.0, "Success rate should be at least 95% (got {:.1}%)", success_rate);
 
-    info!("✓ Authentication stress test passed: {:.1} RPS with {:.1}% success rate", 
-          actual_rps, success_rate);
+    info!(
+        "✓ Authentication stress test passed: {:.1} RPS with {:.1}% success rate",
+        actual_rps, success_rate
+    );
 
     Ok(())
 }

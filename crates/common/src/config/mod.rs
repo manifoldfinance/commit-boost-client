@@ -45,15 +45,15 @@ impl CommitBoostConfig {
     pub async fn validate(&self) -> Result<()> {
         // Validate PBS configuration
         self.pbs.pbs_config.validate(self.chain).await?;
-        
+
         // Validate signer configuration if present
         if let Some(signer) = &self.signer {
             signer.validate().await?;
         }
-        
+
         // Validate module conflicts
         validate_no_conflicts(self)?;
-        
+
         Ok(())
     }
 
@@ -105,7 +105,7 @@ impl CommitBoostConfig {
             Ok(config) => match config.chain {
                 ChainLoader::Path { path, .. } => Some(path),
                 _ => None,
-            }
+            },
             Err(_) => None,
         }
     }

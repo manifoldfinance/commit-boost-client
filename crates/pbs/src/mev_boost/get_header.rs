@@ -117,23 +117,22 @@ pub async fn get_header<S: BuilderApiState>(
                 // Apply bid boost if configured
                 if let Some(boost) = relays[i].config.bid_boost {
                     let original = res.value();
-                    let boosted = BID_BOOST_CACHE.with(|cache| {
-                        cache.borrow_mut().get_or_calculate(original, boost)
-                    });
+                    let boosted = BID_BOOST_CACHE
+                        .with(|cache| cache.borrow_mut().get_or_calculate(original, boost));
                     res.set_value(boosted);
-                    
+
                     // Only log if actually modified
                     if original != boosted {
                         debug!(
-                            relay_id, 
-                            boost, 
+                            relay_id,
+                            boost,
                             original = %format_ether(original),
                             boosted = %format_ether(boosted),
                             "Applied bid boost"
                         );
                     }
                 }
-                
+
                 RELAY_LAST_SLOT.with_label_values(&[relay_id]).set(params.slot as i64);
                 let value_gwei =
                     (res.value() / U256::from(1_000_000_000)).try_into().unwrap_or_default();
@@ -175,29 +174,26 @@ struct BidBoostCache {
 
 impl BidBoostCache {
     fn new(max_size: usize) -> Self {
-        Self {
-            cache: HashMap::with_capacity(max_size),
-            max_size,
-        }
+        Self { cache: HashMap::with_capacity(max_size), max_size }
     }
-    
+
     fn get_or_calculate(&mut self, value: U256, boost: f64) -> U256 {
         // Convert boost to fixed-point for cache key (10000 = 1.0)
         let boost_factor = (boost * 10000.0) as u64;
         let key = (value, boost_factor);
-        
+
         if let Some(&cached) = self.cache.get(&key) {
             return cached;
         }
-        
+
         // Calculate and cache
         let boosted = apply_bid_boost(value, boost);
-        
+
         // Simple eviction: clear if too large
         if self.cache.len() >= self.max_size {
             self.cache.clear();
         }
-        
+
         self.cache.insert(key, boosted);
         boosted
     }
@@ -601,18 +597,18 @@ mod tests {
         // Test normal boost
         assert_eq!(apply_bid_boost(U256::from(100), 1.05), U256::from(105));
         assert_eq!(apply_bid_boost(U256::from(1000), 1.10), U256::from(1100));
-        
+
         // Test no boost
         assert_eq!(apply_bid_boost(U256::from(100), 1.0), U256::from(100));
-        
+
         // Test boost less than 1.0 should not decrease
         assert_eq!(apply_bid_boost(U256::from(100), 0.95), U256::from(100));
         assert_eq!(apply_bid_boost(U256::from(100), 0.5), U256::from(100));
-        
+
         // Test edge cases
         assert_eq!(apply_bid_boost(U256::ZERO, 1.05), U256::ZERO);
         assert_eq!(apply_bid_boost(U256::from(1), 1.05), U256::from(1)); // Should not decrease
-        
+
         // Test precision with larger values
         let large_value = U256::from(10_000_000_000_000_000_000u128); // 10 ETH in wei
         let boosted = apply_bid_boost(large_value, 1.025); // 2.5% boost
@@ -632,45 +628,45 @@ mod tests {
     #[test]
     fn test_bid_boost_cache() {
         let mut cache = BidBoostCache::new(3);
-        
+
         // First call calculates
         let result1 = cache.get_or_calculate(U256::from(100), 1.05);
         assert_eq!(result1, U256::from(105));
         assert_eq!(cache.cache.len(), 1);
-        
+
         // Second call uses cache (same value, same boost)
         let result2 = cache.get_or_calculate(U256::from(100), 1.05);
         assert_eq!(result2, U256::from(105));
         assert_eq!(cache.cache.len(), 1); // Still only 1 entry
-        
+
         // Different values cached separately
         let result3 = cache.get_or_calculate(U256::from(200), 1.05);
         assert_eq!(result3, U256::from(210));
         assert_eq!(cache.cache.len(), 2);
-        
+
         cache.get_or_calculate(U256::from(300), 1.10);
         assert_eq!(cache.cache.len(), 3);
-        
+
         // Cache eviction on overflow
         cache.get_or_calculate(U256::from(400), 1.05);
         assert_eq!(cache.cache.len(), 1); // Cache was cleared and new entry added
     }
-    
+
     #[test]
     fn test_cache_precision() {
         let mut cache = BidBoostCache::new(10);
-        
+
         // Test that similar boosts are cached separately
         let val = U256::from(1000);
         let boost1 = cache.get_or_calculate(val, 1.0501);
         let boost2 = cache.get_or_calculate(val, 1.0502);
-        
+
         // Different boost factors should give different results
         // 1.0501 -> 10501/10000 = 1050
         // 1.0502 -> 10502/10000 = 1050
         // Due to rounding they might be the same
         assert!(boost1 <= boost2);
-        
+
         // Test more distinct values
         let boost3 = cache.get_or_calculate(val, 1.05);
         let boost4 = cache.get_or_calculate(val, 1.10);
@@ -678,25 +674,21 @@ mod tests {
         assert_eq!(boost4, U256::from(1100));
         assert_ne!(boost3, boost4);
     }
-    
+
     #[test]
     fn test_cache_thread_local() {
         // Test that the thread-local cache works
-        let value1 = BID_BOOST_CACHE.with(|cache| {
-            cache.borrow_mut().get_or_calculate(U256::from(100), 1.05)
-        });
+        let value1 = BID_BOOST_CACHE
+            .with(|cache| cache.borrow_mut().get_or_calculate(U256::from(100), 1.05));
         assert_eq!(value1, U256::from(105));
-        
+
         // Second call should use cache
-        let value2 = BID_BOOST_CACHE.with(|cache| {
-            cache.borrow_mut().get_or_calculate(U256::from(100), 1.05)
-        });
+        let value2 = BID_BOOST_CACHE
+            .with(|cache| cache.borrow_mut().get_or_calculate(U256::from(100), 1.05));
         assert_eq!(value2, U256::from(105));
-        
+
         // Check cache size
-        let cache_size = BID_BOOST_CACHE.with(|cache| {
-            cache.borrow().cache.len()
-        });
+        let cache_size = BID_BOOST_CACHE.with(|cache| cache.borrow().cache.len());
         assert_eq!(cache_size, 1);
     }
 

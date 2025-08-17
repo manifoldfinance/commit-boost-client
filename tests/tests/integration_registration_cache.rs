@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::{Duration, Instant}};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use alloy::{
     primitives::Address,
@@ -18,14 +21,18 @@ use cb_tests::{
 use eyre::Result;
 use futures::future::try_join_all;
 use reqwest::StatusCode;
-use tracing::{info, debug};
 use tokio::time::sleep;
+use tracing::{debug, info};
 
 // Test constants
 const LARGE_VALIDATOR_COUNT: usize = 1000;
 const BENCHMARK_VALIDATOR_COUNT: usize = 10000;
 
-fn create_test_registration(i: usize, fee_recipient: Address, gas_limit: u64) -> ValidatorRegistration {
+fn create_test_registration(
+    i: usize,
+    fee_recipient: Address,
+    gas_limit: u64,
+) -> ValidatorRegistration {
     ValidatorRegistration {
         message: alloy::rpc::types::beacon::relay::ValidatorRegistrationMessage {
             fee_recipient,
@@ -39,9 +46,7 @@ fn create_test_registration(i: usize, fee_recipient: Address, gas_limit: u64) ->
 
 fn create_validator_registrations(count: usize) -> Vec<ValidatorRegistration> {
     let fee_recipient = Address::from([2u8; 20]);
-    (0..count)
-        .map(|i| create_test_registration(i, fee_recipient, 30_000_000))
-        .collect()
+    (0..count).map(|i| create_test_registration(i, fee_recipient, 30_000_000)).collect()
 }
 
 async fn setup_pbs_service_with_mock_relay(pbs_port: u16) -> Result<Arc<MockRelayState>> {
@@ -74,7 +79,7 @@ async fn test_registration_cache_ttl_expiration() -> Result<()> {
     // This is intentional for integration testing
 
     let registration = create_test_registration(1, Address::from([2u8; 20]), 30_000_000);
-    
+
     info!("Testing initial registration");
     let res = mock_validator.do_register_custom_validators(vec![registration.clone()]).await?;
     assert_eq!(res.status(), StatusCode::OK);
@@ -102,9 +107,10 @@ async fn test_parameter_change_detection() -> Result<()> {
     // Using global cache - testing real cache behavior
 
     let initial_registration = create_test_registration(1, Address::from([2u8; 20]), 30_000_000);
-    
+
     info!("Initial registration");
-    let res = mock_validator.do_register_custom_validators(vec![initial_registration.clone()]).await?;
+    let res =
+        mock_validator.do_register_custom_validators(vec![initial_registration.clone()]).await?;
     assert_eq!(res.status(), StatusCode::OK);
     assert_eq!(mock_state.received_register_validator(), 1);
 
@@ -143,69 +149,70 @@ async fn test_concurrent_registration_handling() -> Result<()> {
 
     info!("Testing concurrent registration of {} validators", LARGE_VALIDATOR_COUNT);
     let registrations = create_validator_registrations(LARGE_VALIDATOR_COUNT);
-    
+
     let start_time = Instant::now();
-    
+
     // Split registrations into chunks for concurrent processing
     let chunk_size = 100;
     let mut handles = Vec::new();
-    
+
     for chunk in registrations.chunks(chunk_size) {
         let chunk_regs = chunk.to_vec();
         let validator = MockValidator::new(pbs_port)?;
-        
-        let handle = tokio::spawn(async move {
-            validator.do_register_custom_validators(chunk_regs).await
-        });
+
+        let handle =
+            tokio::spawn(async move { validator.do_register_custom_validators(chunk_regs).await });
         handles.push(handle);
     }
-    
+
     // Wait for all concurrent registrations
     let results: Result<Vec<_>, _> = try_join_all(handles).await;
     let responses = results?;
-    
+
     let elapsed = start_time.elapsed();
-    info!("Concurrent registration of {} validators completed in {:?}", LARGE_VALIDATOR_COUNT, elapsed);
-    
+    info!(
+        "Concurrent registration of {} validators completed in {:?}",
+        LARGE_VALIDATOR_COUNT, elapsed
+    );
+
     // Verify all responses are successful
     for response in responses {
         let response = response?;
         assert_eq!(response.status(), StatusCode::OK);
     }
-    
+
     // Verify relay received the registrations
     let total_received = mock_state.received_register_validator();
     debug!("Total registrations received by relay: {}", total_received);
     assert!(total_received > 0);
-    
+
     // Test second round should be mostly cached
     info!("Testing second round (should be mostly cached)");
     mock_state.reset_counter();
     let start_cached = Instant::now();
-    
+
     let mut cached_handles = Vec::new();
     for chunk in registrations.chunks(chunk_size) {
         let chunk_regs = chunk.to_vec();
         let validator = MockValidator::new(pbs_port)?;
-        
-        let handle = tokio::spawn(async move {
-            validator.do_register_custom_validators(chunk_regs).await
-        });
+
+        let handle =
+            tokio::spawn(async move { validator.do_register_custom_validators(chunk_regs).await });
         cached_handles.push(handle);
     }
-    
+
     let cached_results: Result<Vec<_>, _> = try_join_all(cached_handles).await;
     let _cached_responses = cached_results?;
-    
+
     let cached_elapsed = start_cached.elapsed();
     info!("Cached round completed in {:?}", cached_elapsed);
-    
+
     // Second round should be much faster and have fewer relay calls
     let cached_received = mock_state.received_register_validator();
     debug!("Cached registrations received by relay: {}", cached_received);
     assert!(cached_received < total_received);
     assert!(cached_elapsed < elapsed);
-    
+
     Ok(())
 }
 
@@ -219,24 +226,24 @@ async fn test_cache_cleanup_and_memory_management() -> Result<()> {
     // Using global cache - testing real cache behavior
 
     info!("Testing cache cleanup and memory management");
-    
+
     // Add many registrations to trigger cleanup
     let large_batch = create_validator_registrations(1200); // > 1000 to trigger cleanup
-    
+
     let res = mock_validator.do_register_custom_validators(large_batch).await?;
     assert_eq!(res.status(), StatusCode::OK);
-    
+
     info!("Cache cleanup test completed - verified through registration behavior");
-    
+
     // Test that cache continues to work correctly after cleanup
     let test_registration = create_test_registration(999, Address::from([2u8; 20]), 30_000_000);
     mock_state.reset_counter();
-    
+
     let res = mock_validator.do_register_custom_validators(vec![test_registration]).await?;
     assert_eq!(res.status(), StatusCode::OK);
     // Should be cached from previous large batch
     assert_eq!(mock_state.received_register_validator(), 0);
-    
+
     Ok(())
 }
 
@@ -251,73 +258,79 @@ async fn test_performance_benchmark_10k_validators() -> Result<()> {
 
     info!("Performance benchmark: {} validator registrations", BENCHMARK_VALIDATOR_COUNT);
     let registrations = create_validator_registrations(BENCHMARK_VALIDATOR_COUNT);
-    
+
     // Benchmark initial registration (cold cache)
     let start_cold = Instant::now();
-    
+
     // Process in larger chunks for better performance
     let chunk_size = 500;
     let mut cold_handles = Vec::new();
-    
+
     for chunk in registrations.chunks(chunk_size) {
         let chunk_regs = chunk.to_vec();
         let validator = MockValidator::new(pbs_port)?;
-        
-        let handle = tokio::spawn(async move {
-            validator.do_register_custom_validators(chunk_regs).await
-        });
+
+        let handle =
+            tokio::spawn(async move { validator.do_register_custom_validators(chunk_regs).await });
         cold_handles.push(handle);
     }
-    
+
     let cold_results: Result<Vec<_>, _> = try_join_all(cold_handles).await;
     let _cold_responses = cold_results?;
-    
+
     let cold_elapsed = start_cold.elapsed();
     let cold_throughput = BENCHMARK_VALIDATOR_COUNT as f64 / cold_elapsed.as_secs_f64();
-    
-    info!("Cold cache: {} validators in {:?} ({:.2} validators/sec)", 
-          BENCHMARK_VALIDATOR_COUNT, cold_elapsed, cold_throughput);
-    
+
+    info!(
+        "Cold cache: {} validators in {:?} ({:.2} validators/sec)",
+        BENCHMARK_VALIDATOR_COUNT, cold_elapsed, cold_throughput
+    );
+
     // Benchmark cached registration (warm cache)
     mock_state.reset_counter();
     let start_warm = Instant::now();
-    
+
     let mut warm_handles = Vec::new();
     for chunk in registrations.chunks(chunk_size) {
         let chunk_regs = chunk.to_vec();
         let validator = MockValidator::new(pbs_port)?;
-        
-        let handle = tokio::spawn(async move {
-            validator.do_register_custom_validators(chunk_regs).await
-        });
+
+        let handle =
+            tokio::spawn(async move { validator.do_register_custom_validators(chunk_regs).await });
         warm_handles.push(handle);
     }
-    
+
     let warm_results: Result<Vec<_>, _> = try_join_all(warm_handles).await;
     let _warm_responses = warm_results?;
-    
+
     let warm_elapsed = start_warm.elapsed();
     let warm_throughput = BENCHMARK_VALIDATOR_COUNT as f64 / warm_elapsed.as_secs_f64();
-    
-    info!("Warm cache: {} validators in {:?} ({:.2} validators/sec)", 
-          BENCHMARK_VALIDATOR_COUNT, warm_elapsed, warm_throughput);
-    
+
+    info!(
+        "Warm cache: {} validators in {:?} ({:.2} validators/sec)",
+        BENCHMARK_VALIDATOR_COUNT, warm_elapsed, warm_throughput
+    );
+
     // Verify performance improvement
     let speedup = cold_elapsed.as_secs_f64() / warm_elapsed.as_secs_f64();
     info!("Cache speedup: {:.2}x", speedup);
-    
+
     // Cache should provide significant speedup
     assert!(speedup > 2.0, "Cache should provide at least 2x speedup, got {:.2}x", speedup);
-    
+
     // Verify most requests were cached in second round
     let warm_relay_calls = mock_state.received_register_validator();
     let cache_hit_rate = 1.0 - (warm_relay_calls as f64 / BENCHMARK_VALIDATOR_COUNT as f64);
     info!("Cache hit rate: {:.2}%", cache_hit_rate * 100.0);
-    
-    assert!(cache_hit_rate > 0.95, "Cache hit rate should be > 95%, got {:.2}%", cache_hit_rate * 100.0);
-    
+
+    assert!(
+        cache_hit_rate > 0.95,
+        "Cache hit rate should be > 95%, got {:.2}%",
+        cache_hit_rate * 100.0
+    );
+
     info!("Performance benchmark completed successfully");
-    
+
     Ok(())
 }
 
@@ -330,45 +343,51 @@ async fn test_cache_race_conditions() -> Result<()> {
     // Using global cache - testing real cache behavior
 
     info!("Testing race conditions with concurrent cache access");
-    
+
     // Create same registration for all concurrent requests
     let same_registration = create_test_registration(42, Address::from([2u8; 20]), 30_000_000);
-    
+
     let mut handles = Vec::new();
     let concurrent_requests = 50;
-    
+
     // Spawn many concurrent requests for the same validator
     for _ in 0..concurrent_requests {
         let registration = same_registration.clone();
         let validator = MockValidator::new(pbs_port)?;
-        
+
         let handle = tokio::spawn(async move {
             validator.do_register_custom_validators(vec![registration]).await
         });
         handles.push(handle);
     }
-    
+
     // Wait for all to complete
     let results: Result<Vec<_>, _> = try_join_all(handles).await;
     let responses = results?;
-    
+
     // All should succeed
     for response in responses {
         let response = response?;
         assert_eq!(response.status(), StatusCode::OK);
     }
-    
+
     // Due to cache, relay should receive far fewer calls than total requests
     let total_relay_calls = mock_state.received_register_validator();
-    info!("Total relay calls for {} concurrent requests: {}", concurrent_requests, total_relay_calls);
-    
+    info!(
+        "Total relay calls for {} concurrent requests: {}",
+        concurrent_requests, total_relay_calls
+    );
+
     // Should be much less than the number of concurrent requests due to caching
-    assert!(total_relay_calls < concurrent_requests / 2,
-            "Expected far fewer relay calls due to caching, got {} out of {} requests", 
-            total_relay_calls, concurrent_requests);
-    
+    assert!(
+        total_relay_calls < concurrent_requests / 2,
+        "Expected far fewer relay calls due to caching, got {} out of {} requests",
+        total_relay_calls,
+        concurrent_requests
+    );
+
     info!("Race condition test completed - cache prevented duplicate registrations");
-    
+
     Ok(())
 }
 
@@ -382,13 +401,13 @@ async fn test_mixed_cached_and_new_registrations() -> Result<()> {
     // Using global cache - testing real cache behavior
 
     info!("Testing mixed batch of cached and new registrations");
-    
+
     // Register initial batch
     let initial_batch = create_validator_registrations(100);
     let res = mock_validator.do_register_custom_validators(initial_batch.clone()).await?;
     assert_eq!(res.status(), StatusCode::OK);
     let _initial_relay_calls = mock_state.received_register_validator();
-    
+
     // Create mixed batch: 50 cached + 50 new
     let mut mixed_batch = initial_batch[0..50].to_vec(); // Already cached
     let new_registrations = create_validator_registrations(50)
@@ -401,20 +420,26 @@ async fn test_mixed_cached_and_new_registrations() -> Result<()> {
         })
         .collect::<Vec<_>>();
     mixed_batch.extend(new_registrations);
-    
+
     // Process mixed batch
     mock_state.reset_counter();
     let res = mock_validator.do_register_custom_validators(mixed_batch).await?;
     assert_eq!(res.status(), StatusCode::OK);
-    
+
     let mixed_relay_calls = mock_state.received_register_validator();
     info!("Mixed batch relay calls: {} (should be ~50 for new validators only)", mixed_relay_calls);
-    
+
     // Should only process new validators (around 50), not the cached ones
-    assert!(mixed_relay_calls < 70, 
-            "Expected ~50 relay calls for new validators, got {}", mixed_relay_calls);
-    assert!(mixed_relay_calls > 30, 
-            "Expected at least 30 relay calls for new validators, got {}", mixed_relay_calls);
-    
+    assert!(
+        mixed_relay_calls < 70,
+        "Expected ~50 relay calls for new validators, got {}",
+        mixed_relay_calls
+    );
+    assert!(
+        mixed_relay_calls > 30,
+        "Expected at least 30 relay calls for new validators, got {}",
+        mixed_relay_calls
+    );
+
     Ok(())
 }

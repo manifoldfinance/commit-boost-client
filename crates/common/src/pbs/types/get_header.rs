@@ -227,13 +227,13 @@ mod tests {
         }"#;
 
         let mut parsed: GetHeaderResponse = serde_json::from_str(data).unwrap();
-        
+
         // Check initial value
         assert_eq!(parsed.value(), U256::from(100));
-        
+
         // Set new value
         parsed.set_value(U256::from(105));
-        
+
         // Verify value was updated
         assert_eq!(parsed.value(), U256::from(105));
     }

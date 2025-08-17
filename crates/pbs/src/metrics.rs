@@ -6,8 +6,9 @@
 use lazy_static::lazy_static;
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, register_int_counter_with_registry, register_int_gauge_with_registry,
-    HistogramVec, IntCounterVec, IntGaugeVec, IntCounter, IntGauge, Registry,
+    register_int_counter_with_registry, register_int_gauge_vec_with_registry,
+    register_int_gauge_with_registry, HistogramVec, IntCounter, IntCounterVec, IntGauge,
+    IntGaugeVec, Registry,
 };
 
 lazy_static! {
@@ -72,7 +73,7 @@ lazy_static! {
 
     /// Number of registration cache misses
     pub static ref REGISTRATION_CACHE_MISSES: IntCounter = register_int_counter_with_registry!(
-        "registration_cache_misses_total", 
+        "registration_cache_misses_total",
         "Number of registration cache misses",
         PBS_METRICS_REGISTRY
     ).unwrap();

@@ -56,7 +56,8 @@ async fn test_signer_sign_request_good() -> Result<()> {
     let module_id = ModuleId(MODULE_ID_1.to_string());
     let mod_cfgs = create_mod_signing_configs().await;
     let start_config = start_server(20200, &mod_cfgs, ADMIN_SECRET.to_string()).await?;
-    let jwt_config = mod_cfgs.get(&module_id).ok_or_else(|| eyre::eyre!("Module config not found"))?;
+    let jwt_config =
+        mod_cfgs.get(&module_id).ok_or_else(|| eyre::eyre!("Module config not found"))?;
 
     // Send a signing request
     let object_root = b256!("0x0123456789012345678901234567890123456789012345678901234567890123");
@@ -85,7 +86,8 @@ async fn test_signer_sign_request_different_module() -> Result<()> {
     let module_id = ModuleId(MODULE_ID_2.to_string());
     let mod_cfgs = create_mod_signing_configs().await;
     let start_config = start_server(20201, &mod_cfgs, ADMIN_SECRET.to_string()).await?;
-    let jwt_config = mod_cfgs.get(&module_id).ok_or_else(|| eyre::eyre!("Module config not found"))?;
+    let jwt_config =
+        mod_cfgs.get(&module_id).ok_or_else(|| eyre::eyre!("Module config not found"))?;
 
     // Send a signing request
     let object_root = b256!("0x0123456789012345678901234567890123456789012345678901234567890123");
