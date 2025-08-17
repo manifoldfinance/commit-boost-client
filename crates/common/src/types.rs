@@ -203,11 +203,11 @@ impl KnownChain {
 
     pub fn slot_time_sec(&self) -> u64 {
         match self {
-            KnownChain::Mainnet |
-            KnownChain::Holesky |
-            KnownChain::Sepolia |
-            KnownChain::Helder |
-            KnownChain::Hoodi => 12,
+            KnownChain::Mainnet
+            | KnownChain::Holesky
+            | KnownChain::Sepolia
+            | KnownChain::Helder
+            | KnownChain::Hoodi => 12,
         }
     }
 }
@@ -382,11 +382,14 @@ mod tests {
     fn test_load_custom() {
         let s = r#"chain = { genesis_time_secs = 1, slot_time_secs = 2, genesis_fork_version = "0x01000000" }"#;
         let decoded: MockConfig = toml::from_str(s).unwrap();
-        assert_eq!(decoded.chain, Chain::Custom {
-            genesis_time_secs: 1,
-            slot_time_secs: 2,
-            genesis_fork_version: [1, 0, 0, 0]
-        })
+        assert_eq!(
+            decoded.chain,
+            Chain::Custom {
+                genesis_time_secs: 1,
+                slot_time_secs: 2,
+                genesis_fork_version: [1, 0, 0, 0]
+            }
+        )
     }
 
     #[test]
@@ -423,11 +426,14 @@ mod tests {
 
         let decoded: MockConfig = toml::from_str(&s).unwrap();
         assert_eq!(decoded.chain.slot_time_sec(), KnownChain::Holesky.slot_time_sec());
-        assert_eq!(decoded.chain, Chain::Custom {
-            genesis_time_secs: 1,
-            slot_time_secs: KnownChain::Holesky.slot_time_sec(),
-            genesis_fork_version: KnownChain::Holesky.genesis_fork_version()
-        })
+        assert_eq!(
+            decoded.chain,
+            Chain::Custom {
+                genesis_time_secs: 1,
+                slot_time_secs: KnownChain::Holesky.slot_time_sec(),
+                genesis_fork_version: KnownChain::Holesky.genesis_fork_version()
+            }
+        )
     }
 
     #[test]
@@ -443,11 +449,14 @@ mod tests {
 
         let decoded: MockConfig = toml::from_str(&s).unwrap();
         assert_eq!(decoded.chain.slot_time_sec(), KnownChain::Helder.slot_time_sec());
-        assert_eq!(decoded.chain, Chain::Custom {
-            genesis_time_secs: 1,
-            slot_time_secs: KnownChain::Sepolia.slot_time_sec(),
-            genesis_fork_version: KnownChain::Sepolia.genesis_fork_version()
-        })
+        assert_eq!(
+            decoded.chain,
+            Chain::Custom {
+                genesis_time_secs: 1,
+                slot_time_secs: KnownChain::Sepolia.slot_time_sec(),
+                genesis_fork_version: KnownChain::Sepolia.genesis_fork_version()
+            }
+        )
     }
 
     #[test]
@@ -463,11 +472,14 @@ mod tests {
 
         let decoded: MockConfig = toml::from_str(&s).unwrap();
         assert_eq!(decoded.chain.slot_time_sec(), KnownChain::Hoodi.slot_time_sec());
-        assert_eq!(decoded.chain, Chain::Custom {
-            genesis_time_secs: 1,
-            slot_time_secs: KnownChain::Hoodi.slot_time_sec(),
-            genesis_fork_version: KnownChain::Hoodi.genesis_fork_version()
-        })
+        assert_eq!(
+            decoded.chain,
+            Chain::Custom {
+                genesis_time_secs: 1,
+                slot_time_secs: KnownChain::Hoodi.slot_time_sec(),
+                genesis_fork_version: KnownChain::Hoodi.genesis_fork_version()
+            }
+        )
     }
 
     #[test]
@@ -483,10 +495,13 @@ mod tests {
 
         let decoded: MockConfig = toml::from_str(&s).unwrap();
         assert_eq!(decoded.chain.slot_time_sec(), KnownChain::Helder.slot_time_sec());
-        assert_eq!(decoded.chain, Chain::Custom {
-            genesis_time_secs: 1,
-            slot_time_secs: KnownChain::Helder.slot_time_sec(),
-            genesis_fork_version: KnownChain::Helder.genesis_fork_version()
-        })
+        assert_eq!(
+            decoded.chain,
+            Chain::Custom {
+                genesis_time_secs: 1,
+                slot_time_secs: KnownChain::Helder.slot_time_sec(),
+                genesis_fork_version: KnownChain::Helder.genesis_fork_version()
+            }
+        )
     }
 }

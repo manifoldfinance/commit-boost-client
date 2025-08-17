@@ -85,7 +85,7 @@ async fn test_register_validators_returns_422_if_request_is_malformed() -> Resul
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let mock_validator = MockValidator::new(pbs_port)?;
-    let url = mock_validator.comm_boost.register_validator_url().unwrap();
+    let url = mock_validator.comm_boost.register_validator_url()?;
     info!("Sending register validator");
 
     // Bad fee recipient
@@ -201,7 +201,6 @@ async fn test_register_validators_returns_422_if_request_is_malformed() -> Resul
     assert_eq!(mock_state.received_register_validator(), 0);
     Ok(())
 }
-
 #[tokio::test]
 async fn test_register_validators_does_not_retry_on_429() -> Result<()> {
     setup_test_env();

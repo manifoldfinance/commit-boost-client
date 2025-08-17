@@ -43,14 +43,13 @@ async fn test_get_status() -> Result<()> {
 
     let mock_validator = MockValidator::new(pbs_port)?;
     info!("Sending get status");
-    let res = mock_validator.do_get_status().await.expect("failed to get status");
+    let res = mock_validator.do_get_status().await?;
     assert_eq!(res.status(), StatusCode::OK);
 
     // Expect two statuses since two relays in config
     assert_eq!(mock_state.received_get_status(), 2);
     Ok(())
 }
-
 #[tokio::test]
 async fn test_get_status_returns_502_if_relay_down() -> Result<()> {
     setup_test_env();
@@ -76,7 +75,7 @@ async fn test_get_status_returns_502_if_relay_down() -> Result<()> {
 
     let mock_validator = MockValidator::new(pbs_port)?;
     info!("Sending get status");
-    let res = mock_validator.do_get_status().await.expect("failed to get status");
+    let res = mock_validator.do_get_status().await?;
     assert_eq!(res.status(), StatusCode::BAD_GATEWAY); // 502 error
 
     // Expect no statuses since relay is down

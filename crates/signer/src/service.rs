@@ -422,11 +422,10 @@ async fn handle_reload(
         let mut new_configs = HashMap::new();
         for (module_id, jwt_secret) in jwt_secrets {
             if let Some(signing_id) = jwt_configs.get(&module_id).map(|cfg| cfg.signing_id) {
-                new_configs.insert(module_id.clone(), ModuleSigningConfig {
-                    module_name: module_id,
-                    jwt_secret,
-                    signing_id,
-                });
+                new_configs.insert(
+                    module_id.clone(),
+                    ModuleSigningConfig { module_name: module_id, jwt_secret, signing_id },
+                );
             } else {
                 let error_message = format!(
                     "Module {module_id} signing ID not found in commit-boost config, cannot reload"

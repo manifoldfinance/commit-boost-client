@@ -46,6 +46,7 @@ pub fn generate_mock_relay(port: u16, pubkey: BlsPublicKey) -> Result<RelayClien
         target_first_request_ms: None,
         frequency_get_header_ms: None,
         validator_registration_batch_size: None,
+        bid_boost: None,
     };
     RelayClient::new(config)
 }
@@ -66,6 +67,7 @@ pub fn generate_mock_relay_with_batch_size(
         target_first_request_ms: None,
         frequency_get_header_ms: None,
         validator_registration_batch_size: Some(batch_size),
+        bid_boost: None,
     };
     RelayClient::new(config)
 }
@@ -165,4 +167,10 @@ pub fn create_module_config(id: ModuleId, signing_id: B256) -> StaticModuleConfi
         env_file: None,
         kind: ModuleKind::Commit,
     }
+}
+
+pub fn get_default_config() -> CommitBoostConfig {
+    let pbs_config = get_pbs_config(18550);
+    let pbs_static_config = get_pbs_static_config(pbs_config);
+    get_commit_boost_config(pbs_static_config)
 }

@@ -121,7 +121,7 @@ async fn test_get_header_returns_400_if_request_is_invalid() -> Result<()> {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Create an invalid URL by truncating the pubkey
-    let mut bad_url = mock_relay.get_header_url(0, B256::ZERO, pubkey).unwrap();
+    let mut bad_url = mock_relay.get_header_url(0, B256::ZERO, pubkey)?;
     bad_url.set_path(&bad_url.path().replace(&pubkey.to_string(), &pubkey.to_string()[..10]));
 
     let mock_validator = MockValidator::new(pbs_port)?;

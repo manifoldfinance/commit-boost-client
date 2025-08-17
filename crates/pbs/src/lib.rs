@@ -3,6 +3,7 @@ mod constants;
 mod error;
 mod metrics;
 mod mev_boost;
+mod registration_cache;
 mod routes;
 mod service;
 mod state;

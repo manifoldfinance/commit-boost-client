@@ -123,13 +123,13 @@ fn load_from_lighthouse_format(
         .into_par_iter()
         .filter_map(|path| {
             if !path.is_dir() {
-                return None
+                return None;
             }
 
             let maybe_pubkey = path.file_name().and_then(|d| d.to_str())?;
             let Ok(pubkey) = BlsPublicKey::from_hex(maybe_pubkey) else {
                 warn!("Invalid pubkey: {}", maybe_pubkey);
-                return None
+                return None;
             };
 
             let ks_path = keys_path.join(maybe_pubkey).join("voting-keystore.json");
@@ -286,13 +286,13 @@ fn load_from_nimbus_format(
         .into_par_iter()
         .filter_map(|path| {
             if !path.is_dir() {
-                return None
+                return None;
             }
 
             let maybe_pubkey = path.file_name().and_then(|d| d.to_str())?;
             let Ok(pubkey) = BlsPublicKey::from_hex(maybe_pubkey) else {
                 warn!("Invalid pubkey: {}", maybe_pubkey);
-                return None
+                return None;
             };
 
             let ks_path = keys_path.join(maybe_pubkey).join("keystore.json");

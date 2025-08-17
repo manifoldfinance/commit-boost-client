@@ -58,6 +58,9 @@ pub struct RelayConfig {
     /// request
     #[serde(deserialize_with = "empty_string_as_none", default)]
     pub validator_registration_batch_size: Option<usize>,
+    /// Simple bid boost: 1.05 = 5% increase
+    #[serde(default)]
+    pub bid_boost: Option<f64>,
 }
 
 fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<usize>, D::Error>

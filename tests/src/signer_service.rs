@@ -26,8 +26,8 @@ pub async fn start_server(
 
     // Create a signer config
     let loader = SignerLoader::ValidatorsDir {
-        keys_path: "data/keystores/keys".into(),
-        secrets_path: "data/keystores/secrets".into(),
+        keys_path: "tests/data/keystores/keys".into(),
+        secrets_path: "tests/data/keystores/secrets".into(),
         format: ValidatorKeysFormat::Lighthouse,
     };
     let mut config = get_signer_config(loader);

@@ -13,6 +13,7 @@ mod mux;
 mod pbs;
 mod signer;
 mod utils;
+mod validation;
 
 pub use constants::*;
 pub use log::*;
@@ -22,6 +23,7 @@ pub use mux::*;
 pub use pbs::*;
 pub use signer::*;
 pub use utils::*;
+pub use validation::*;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CommitBoostConfig {
@@ -41,10 +43,17 @@ pub struct CommitBoostConfig {
 impl CommitBoostConfig {
     /// Validate config
     pub async fn validate(&self) -> Result<()> {
+        // Validate PBS configuration
         self.pbs.pbs_config.validate(self.chain).await?;
+        
+        // Validate signer configuration if present
         if let Some(signer) = &self.signer {
             signer.validate().await?;
         }
+        
+        // Validate module conflicts
+        validate_no_conflicts(self)?;
+        
         Ok(())
     }
 
@@ -93,12 +102,9 @@ impl CommitBoostConfig {
     /// Returns the path to the chain spec file if any
     pub fn chain_spec_file(path: &PathBuf) -> Option<PathBuf> {
         match load_from_file::<_, ChainConfig>(path) {
-            Ok(config) => {
-                if let ChainLoader::Path { path, genesis_time_secs: _ } = config.chain {
-                    Some(path)
-                } else {
-                    None
-                }
+            Ok(config) => match config.chain {
+                ChainLoader::Path { path, .. } => Some(path),
+                _ => None,
             }
             Err(_) => None,
         }

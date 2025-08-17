@@ -6,7 +6,8 @@
 use lazy_static::lazy_static;
 use prometheus::{
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
+    register_int_gauge_vec_with_registry, register_int_counter_with_registry, register_int_gauge_with_registry,
+    HistogramVec, IntCounterVec, IntGaugeVec, IntCounter, IntGauge, Registry,
 };
 
 lazy_static! {
@@ -58,6 +59,44 @@ lazy_static! {
         "beacon_node_status_code_total",
         "HTTP status code returned to beacon node",
         &["http_status_code", "endpoint"],
+        PBS_METRICS_REGISTRY
+    ).unwrap();
+
+    // REGISTRATION CACHE METRICS
+    /// Number of registration cache hits
+    pub static ref REGISTRATION_CACHE_HITS: IntCounter = register_int_counter_with_registry!(
+        "registration_cache_hits_total",
+        "Number of registration cache hits",
+        PBS_METRICS_REGISTRY
+    ).unwrap();
+
+    /// Number of registration cache misses
+    pub static ref REGISTRATION_CACHE_MISSES: IntCounter = register_int_counter_with_registry!(
+        "registration_cache_misses_total", 
+        "Number of registration cache misses",
+        PBS_METRICS_REGISTRY
+    ).unwrap();
+
+    /// Current size of registration cache
+    pub static ref REGISTRATION_CACHE_SIZE: IntGauge = register_int_gauge_with_registry!(
+        "registration_cache_size",
+        "Current size of registration cache",
+        PBS_METRICS_REGISTRY
+    ).unwrap();
+
+    /// Number of registrations skipped due to cache
+    pub static ref REGISTRATIONS_SKIPPED: IntCounterVec = register_int_counter_vec_with_registry!(
+        "registrations_skipped_total",
+        "Number of registrations skipped due to cache",
+        &["reason"],
+        PBS_METRICS_REGISTRY
+    ).unwrap();
+
+    /// Number of registrations processed
+    pub static ref REGISTRATIONS_PROCESSED: IntCounterVec = register_int_counter_vec_with_registry!(
+        "registrations_processed_total",
+        "Number of registrations processed",
+        &["status"],
         PBS_METRICS_REGISTRY
     ).unwrap();
 }

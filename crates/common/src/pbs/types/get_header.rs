@@ -57,6 +57,12 @@ impl GetHeaderResponse {
         }
     }
 
+    pub fn set_value(&mut self, value: U256) {
+        match self {
+            VersionedResponse::Electra(data) => data.message.value = value,
+        }
+    }
+
     pub fn transactions_root(&self) -> B256 {
         match self {
             GetHeaderResponse::Electra(data) => data.message.header.transactions_root,
@@ -180,6 +186,56 @@ mod tests {
             &B32::from(APPLICATION_BUILDER_DOMAIN)
         )
         .is_ok())
+    }
+
+    #[test]
+    fn test_set_value() {
+        let data = r#"{
+            "version": "electra",
+            "data": {
+                "message": {
+                    "header": {
+                        "parent_hash": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+                        "fee_recipient": "0xabcf8e0d4e9587369b2301d0790347320302cc09",
+                        "state_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+                        "receipts_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+                        "logs_bloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+                        "prev_randao": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+                        "block_number": "1",
+                        "gas_limit": "1",
+                        "gas_used": "1",
+                        "timestamp": "1",
+                        "extra_data": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+                        "base_fee_per_gas": "1",
+                        "blob_gas_used": "1",
+                        "excess_blob_gas": "1",
+                        "block_hash": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+                        "transactions_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2",
+                        "withdrawals_root": "0xcf8e0d4e9587369b2301d0790347320302cc0943d5a1884560367e8208d920f2"
+                    },
+                    "blob_kzg_commitments": [],
+                    "execution_requests": {
+                        "deposits": [],
+                        "withdrawals": [],
+                        "consolidations": []
+                    },
+                    "value": "100",
+                    "pubkey": "0x86b1cea87eed94cad99244356abcd83995947670f0553a1d3fe83c4a9e8116f4891fb1c51db232e736be1cb3327164bc"
+                },
+                "signature": "0x8addecd35e0ffe27b74e41aff2836527e6fea0efdb46dbb0f7436f5087d0cd5665bd16d924f640fc928cdba0173971e400dc603dbd6310bfb6f249c1554b044fe06ae4cf5d5f452f3ff19d9d130809b34d3d3abdca3d192c839ba2ac91129c15"
+            }
+        }"#;
+
+        let mut parsed: GetHeaderResponse = serde_json::from_str(data).unwrap();
+        
+        // Check initial value
+        assert_eq!(parsed.value(), U256::from(100));
+        
+        // Set new value
+        parsed.set_value(U256::from(105));
+        
+        // Verify value was updated
+        assert_eq!(parsed.value(), U256::from(105));
     }
 
     #[test]

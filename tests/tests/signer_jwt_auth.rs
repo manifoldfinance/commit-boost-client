@@ -39,7 +39,7 @@ async fn test_signer_jwt_auth_success() -> Result<()> {
     let module_id = ModuleId(JWT_MODULE.to_string());
     let mod_cfgs = create_mod_signing_configs().await;
     let start_config = start_server(20100, &mod_cfgs, ADMIN_SECRET.to_string()).await?;
-    let jwt_config = mod_cfgs.get(&module_id).expect("JWT config for test module not found");
+    let jwt_config = mod_cfgs.get(&module_id).ok_or_else(|| eyre::eyre!("Module config not found"))?;
 
     // Run a pubkeys request
     let jwt = create_jwt(&module_id, &jwt_config.jwt_secret)?;
@@ -52,7 +52,6 @@ async fn test_signer_jwt_auth_success() -> Result<()> {
 
     Ok(())
 }
-
 #[tokio::test]
 async fn test_signer_jwt_auth_fail() -> Result<()> {
     setup_test_env();
@@ -80,7 +79,7 @@ async fn test_signer_jwt_rate_limit() -> Result<()> {
     let module_id = ModuleId(JWT_MODULE.to_string());
     let mod_cfgs = create_mod_signing_configs().await;
     let start_config = start_server(20102, &mod_cfgs, ADMIN_SECRET.to_string()).await?;
-    let mod_cfg = mod_cfgs.get(&module_id).expect("JWT config for test module not found");
+    let mod_cfg = mod_cfgs.get(&module_id).ok_or_else(|| eyre::eyre!("Module config not found"))?;
 
     // Run as many pubkeys requests as the fail limit
     let jwt = create_jwt(&module_id, "incorrect secret")?;
@@ -106,7 +105,6 @@ async fn test_signer_jwt_rate_limit() -> Result<()> {
 
     Ok(())
 }
-
 #[tokio::test]
 async fn test_signer_revoked_jwt_fail() -> Result<()> {
     setup_test_env();
